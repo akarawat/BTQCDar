@@ -70,7 +70,7 @@ namespace BTQCDar.Controllers
 
             int newId = InsertDar(model);
 
-            TempData["Success"] = $"สร้าง DAR เรียบร้อย : {model.DarNo}";
+            TempData["Success"] = $"DAR created successfully: {model.DarNo}";
             return RedirectToAction("Detail", new { id = newId });
         }
 
@@ -103,7 +103,7 @@ namespace BTQCDar.Controllers
             // Only requester (while Draft) or Admin can edit
             if (model.Status != DarStatus.Draft && !session.IsAdmin)
             {
-                TempData["Error"] = "ไม่สามารถแก้ไขได้ เอกสารอยู่ระหว่างดำเนินการแล้ว";
+                TempData["Error"] = "Cannot edit — this DAR is already in progress.";
                 return RedirectToAction("Detail", new { id });
             }
 
@@ -128,7 +128,7 @@ namespace BTQCDar.Controllers
             }
 
             UpdateDar(model);
-            TempData["Success"] = "บันทึกการแก้ไขเรียบร้อย";
+            TempData["Success"] = "Changes saved successfully.";
             return RedirectToAction("Detail", new { id });
         }
 
@@ -149,7 +149,7 @@ namespace BTQCDar.Controllers
                          approvedDate: DateTime.Now,
                          remarks: remarks);
 
-            TempData["Success"] = "Approve เรียบร้อย — ส่งต่อ MR แล้ว";
+            TempData["Success"] = "Approved — forwarded to MR.";
             return RedirectToAction("Detail", new { id });
         }
 
@@ -166,7 +166,7 @@ namespace BTQCDar.Controllers
             var nextStatus = agree ? DarStatus.PendingDCO : DarStatus.Rejected;
             UpdateMR(id, agree, session.SamAcc, DateTime.Now, nextStatus, remarks);
 
-            TempData["Success"] = agree ? "MR Agree — ส่งต่อ DCO" : "MR ไม่อนุมัติ";
+            TempData["Success"] = agree ? "MR Agreed — forwarded to DCO." : "MR did not agree.";
             return RedirectToAction("Detail", new { id });
         }
 
@@ -182,7 +182,7 @@ namespace BTQCDar.Controllers
 
             UpdateDCO(id, session.SamAcc, registeredDate, DarStatus.Completed, remarks);
 
-            TempData["Success"] = "DCO ลงทะเบียนเอกสารเรียบร้อย — DAR สมบูรณ์";
+            TempData["Success"] = "Document registered by DCO — DAR completed.";
             return RedirectToAction("Detail", new { id });
         }
 
@@ -198,7 +198,7 @@ namespace BTQCDar.Controllers
                 return Forbid();
 
             UpdateStatus(id, DarStatus.Rejected, remarks: remarks);
-            TempData["Error"] = "Reject เอกสารแล้ว";
+            TempData["Error"] = "DAR has been rejected.";
             return RedirectToAction("Detail", new { id });
         }
 
