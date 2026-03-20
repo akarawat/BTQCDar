@@ -180,4 +180,13 @@ namespace BTQCDar.Models
             _ => "bg-secondary"
         };
     }
+    public class SenderMailModel
+    {
+        public string Body { get; set; }
+        public string Form { get; set; }
+        public string MailTo { get; set; }
+        public string Subject { get; set; }
+        public string Addresses { get; set; }
+        public int Priority { get; set; }
+    }
 }

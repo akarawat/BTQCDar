@@ -2,20 +2,33 @@ using BTQCDar.Models;
 using BTQCDar.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
 
 namespace BTQCDar.Controllers
 {
     public class DarController : BaseController
     {
+        private readonly IConfiguration _config;
+        private readonly AppSettingsModel _settings;
+        private readonly IHttpClientFactory _http;
+
         private readonly IDbService _db;
         private readonly IWebHostEnvironment _env;
 
-        public DarController(IDbService db, IWebHostEnvironment env)
+        public DarController(IConfiguration config,
+                                 IOptions<AppSettingsModel> settings,
+                                 IHttpClientFactory http, 
+                                 IDbService db, IWebHostEnvironment env)
         {
+            _config = config;
+            _settings = settings.Value;
+            _http = http;
             _db  = db;
             _env = env;
         }
-
+        // ── Local URL for SendMailController ─────────────────
+        private string LocalMailUrl =>
+            $"{_config["TBCorApiServices:URLSITE"]}SendMail/MailSenderMessage";
         // ────────────────────────────────────────────────────────────────────
         // GET /Dar/Index  — list my DARs
         // ────────────────────────────────────────────────────────────────────

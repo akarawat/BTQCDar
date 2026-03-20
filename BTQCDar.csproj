@@ -15,6 +15,7 @@
       ถ้าใส่ version เก่า (2.2.0) จะเกิด error NU1605: Package downgrade
     -->
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 
   <ItemGroup>

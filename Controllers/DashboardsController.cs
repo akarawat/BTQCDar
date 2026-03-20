@@ -53,7 +53,7 @@ namespace BTQCDar.Controllers
             // 3. No session → redirect to SSO
             // BT SSO appends params with "&" not "?", so returnUrl must end with "?"
             // Result: https://host/Dashboards/Index?id=...&user=...&email=...
-            var returnUrl = Uri.EscapeDataString($"{_settings.URLSITE}/Dashboards/Index?");
+            var returnUrl = Uri.EscapeDataString($"{_settings.URLSITE}Dashboards/Index?");
             return Redirect($"{_settings.AuthenUrl}?url={returnUrl}");
         }
 
