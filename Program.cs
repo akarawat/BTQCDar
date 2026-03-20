@@ -13,6 +13,9 @@ builder.Services.Configure<AppSettingsModel>(
 // ── DI: DB Service ────────────────────────────────────────────────────
 builder.Services.AddScoped<IDbService, DbService>();
 
+// ── DI: Mail Service (scoped so it shares HttpClient lifecycle) ──────────
+builder.Services.AddScoped<BTQCDar.Controllers.SendMailController>();
+
 // ── HTTP Client ───────────────────────────────────────────────────────
 builder.Services.AddHttpClient();
 
