@@ -8,10 +8,12 @@ namespace BTQCDar.Controllers
     public class DarController : BaseController
     {
         private readonly IDbService _db;
+        private readonly IWebHostEnvironment _env;
 
-        public DarController(IDbService db)
+        public DarController(IDbService db, IWebHostEnvironment env)
         {
-            _db = db;
+            _db  = db;
+            _env = env;
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -51,7 +53,7 @@ namespace BTQCDar.Controllers
         // ────────────────────────────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult Create(DarMasterModel model)
+        public async Task<IActionResult> Create(DarMasterModel model, IFormFile? attachmentFile)
         {
             var redirect = RequireLogin(out var session);
             if (redirect != null) return redirect;
@@ -67,6 +69,13 @@ namespace BTQCDar.Controllers
             model.RequestedDate     = DateTime.Now;
             model.Status            = DarStatus.PendingApproval;
             model.DarNo             = GenerateDarNo();
+
+            // Handle file upload
+            if (attachmentFile != null && attachmentFile.Length > 0)
+            {
+                model.HasAttachment      = true;
+                model.AttachmentFileName = await SaveAttachment(attachmentFile, model.DarNo);
+            }
 
             int newId = InsertDar(model);
 
@@ -266,6 +275,25 @@ namespace BTQCDar.Controllers
         // DATA ACCESS  (raw ADO.NET — no EF, consistent with BTTemplate)
         // ══════════════════════════════════════════════════════════════════
 
+        // ────────────────────────────────────────────────────────────────────
+        // File Upload Helper
+        // ────────────────────────────────────────────────────────────────────
+        private async Task<string> SaveAttachment(IFormFile file, string darNo)
+        {
+            var uploadDir = Path.Combine(_env.WebRootPath, "uploads");
+            Directory.CreateDirectory(uploadDir); // ensure folder exists
+
+            // Sanitize: keep original extension, prefix with DarNo + timestamp
+            var ext      = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var safeName = $"{darNo}_{DateTime.Now:yyyyMMddHHmmss}{ext}";
+            var fullPath = Path.Combine(uploadDir, safeName);
+
+            using var stream = new FileStream(fullPath, FileMode.Create);
+            await file.CopyToAsync(stream);
+
+            return safeName; // store only filename, not full path
+        }
+
         private string GenerateDarNo()
         {
             var year = DateTime.Now.Year;
@@ -293,7 +321,7 @@ namespace BTQCDar.Controllers
                 INSERT INTO [dbo].[dar_Master]
                     (DarNo, DocType, DocTypeOther, ForStandard, ForStandardOther,
                      DocumentNo, DocumentName, Purpose, PurposeOther,
-                     Content, HasAttachment, DocStatusUnderRequest,
+                     Content, HasAttachment, AttachmentFileName, DocStatusUnderRequest,
                      ReasonBehindPurpose, EffectiveDate, RevisionNo,
                      IsControlledCopy, IsUncontrolledCopy, DistributionList,
                      RequestedBySamAcc, RequestedByName, RequestedDate,
@@ -302,7 +330,7 @@ namespace BTQCDar.Controllers
                 VALUES
                     (@DarNo, @DocType, @DocTypeOther, @ForStandard, @ForStandardOther,
                      @DocumentNo, @DocumentName, @Purpose, @PurposeOther,
-                     @Content, @HasAttachment, @DocStatusUnderRequest,
+                     @Content, @HasAttachment, @AttachmentFileName, @DocStatusUnderRequest,
                      @ReasonBehindPurpose, @EffectiveDate, @RevisionNo,
                      @IsControlledCopy, @IsUncontrolledCopy, @DistributionList,
                      @RequestedBySamAcc, @RequestedByName, @RequestedDate,
@@ -529,6 +557,7 @@ namespace BTQCDar.Controllers
                 Status                = (DarStatus)(int)r["Status"],
                 Remarks               = r["Remarks"].ToString()!,
                 CreatedAt             = (DateTime)r["CreatedAt"],
+                AttachmentFileName    = r["AttachmentFileName"].ToString()!,
                 UpdatedAt             = (DateTime)r["UpdatedAt"],
             };
         }
@@ -546,6 +575,7 @@ namespace BTQCDar.Controllers
             cmd.Parameters.AddWithValue("@PurposeOther",          m.PurposeOther);
             cmd.Parameters.AddWithValue("@Content",               m.Content);
             cmd.Parameters.AddWithValue("@HasAttachment",         m.HasAttachment);
+            cmd.Parameters.AddWithValue("@AttachmentFileName",      m.AttachmentFileName);
             cmd.Parameters.AddWithValue("@DocStatusUnderRequest", m.DocStatusUnderRequest);
             cmd.Parameters.AddWithValue("@ReasonBehindPurpose",   m.ReasonBehindPurpose);
             cmd.Parameters.AddWithValue("@EffectiveDate",   (object?)m.EffectiveDate ?? DBNull.Value);
