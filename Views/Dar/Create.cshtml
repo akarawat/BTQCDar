@@ -253,6 +253,56 @@
         </div>
     </div>
 
+
+    <!-- ════ Approver Selection ════ -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-danger text-white fw-semibold">
+            <i class="bi bi-person-check me-2"></i>Approver Selection
+            <span class="text-warning ms-1">*</span>
+            <span class="badge bg-white text-danger ms-2 float-end" id="approverCount">0 selected</span>
+        </div>
+        <div class="card-body">
+
+            <!-- Search + Filter bar -->
+            <div class="row g-2 mb-3">
+                <div class="col-md-5">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" id="approverSearch" class="form-control"
+                               placeholder="Search name, department...">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <select id="filterRole" class="form-select form-select-sm">
+                        <option value="">-- All Roles --</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select id="filterDept" class="form-select form-select-sm">
+                        <option value="">-- All Departments --</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Approver list -->
+            <div id="approverListWrap" style="max-height:320px;overflow-y:auto;"
+                 class="border rounded">
+                <div id="approverLoading" class="text-center text-muted py-4">
+                    <div class="spinner-border spinner-border-sm me-2"></div>Loading...
+                </div>
+                <div id="approverList" style="display:none"></div>
+            </div>
+
+            <div id="approverInvalidMsg" class="text-danger small mt-2" style="display:none">
+                <i class="bi bi-exclamation-circle me-1"></i>Please select at least one approver.
+            </div>
+
+            <!-- Selected summary chips -->
+            <div id="selectedChips" class="d-flex flex-wrap gap-2 mt-3"></div>
+
+        </div>
+    </div>
+
     <!-- ════ Distribution List ════ -->
     <div class="card shadow-sm mb-3">
         <div class="card-header fw-semibold">

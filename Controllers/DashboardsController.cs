@@ -2,33 +2,34 @@ using BTQCDar.Models;
 using BTQCDar.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Options;
 
 namespace BTQCDar.Controllers
 {
     public class DashboardsController : BaseController
     {
-        private readonly AppSettingsModel _settings;
+        private readonly IConfiguration _config;
         private readonly IDbService _db;
 
-        public DashboardsController(IOptions<AppSettingsModel> settings, IDbService db)
+        // Read directly from appsettings.json
+        private string AuthenUrl => _config["TBCorApiServices:AuthenUrl"] ?? string.Empty;
+        private string UrlSite => _config["TBCorApiServices:URLSITE"] ?? string.Empty;
+
+        public DashboardsController(IConfiguration config, IDbService db)
         {
-            _settings = settings.Value;
+            _config = config;
             _db = db;
         }
 
-        // ── GET /Dashboards/Index ──────────────────────────────────────────────
+        // ── GET /Dashboards/Index ─────────────────────────────────────────────
         public IActionResult Index(string? id, string? user, string? email,
                                    string? fname, string? depart)
         {
             // 1. Already logged in → show dashboard
             var existing = GetSession();
             if (existing != null && !string.IsNullOrEmpty(existing.SamAcc))
-            {
                 return View(existing);
-            }
 
-            // 2. SSO callback with parameters
+            // 2. SSO callback — params present in query string
             if (!string.IsNullOrEmpty(user))
             {
                 var session = new UserSessionModel
@@ -40,67 +41,97 @@ namespace BTQCDar.Controllers
                     Dept = depart ?? string.Empty,
                 };
 
-                // Load HR info (manager) from BT_HR
                 LoadHrInfo(session);
-
-                // Load DAR roles from BT_QCDAR
                 LoadUserRoles(session);
-
                 SaveSession(session);
                 return View(session);
             }
 
-            // 3. No session → redirect to SSO
-            // BT SSO appends params with "&" not "?", so returnUrl must end with "?"
-            // Result: https://host/Dashboards/Index?id=...&user=...&email=...
-            var returnUrl = Uri.EscapeDataString($"{_settings.URLSITE}Dashboards/Index?");
-            return Redirect($"{_settings.AuthenUrl}?url={returnUrl}");
+            // 3. No session → redirect to BT SSO
+            // BT SSO appends params with "&", so returnUrl must already contain "?"
+            //var returnUrl = Uri.EscapeDataString($"{UrlSite}/Dashboards/Index?");
+            //return Redirect($"{AuthenUrl}?url={returnUrl}");
+            string returnUrl = $"{AuthenUrl}?url={UrlSite}";
+            return Redirect("https://btauthen.berninathailand.com/?url=https://localhost:5001/Dashboards/Index/");
         }
 
         // ── GET /Dashboards/Logout ────────────────────────────────────────────
         public IActionResult Logout()
         {
             HttpContext.Session.Clear();
-            return Redirect(_settings.AuthenUrl + "/Logout");
+            return Redirect($"{AuthenUrl}/Logout");
         }
 
-        // ── Private: Load manager info from BT_HR ─────────────────────────────
+        // ── Private: Load HR info via usp_GetUserHRInfo ───────────────────────
+        //
+        //  SP column mapping (after ALTER):
+        //    SAMACC   → SamAcc
+        //    UEMAIL   → Email        (ISNULL → '')
+        //    DISPNAME → FullName     (ISNULL → '')
+        //    dep_code → Dep_code     (ISNULL → '')
+        //    DEPART   → Department   (ISNULL → '')
+        //    reporter → ManagerName  (ISNULL → '')
+        //    FUNC_GetInfoByFullName(reporter,1) → ManagerSamAcc
+        //    FUNC_GetInfoByFullName(reporter,2) → ManagerEmail
+        //
+        //  Note: SP now returns ALL users (WHERE SAMACC != '')
+        //  → filter by SamAcc here in C# after reading
+        // ─────────────────────────────────────────────────────────────────────
         private void LoadHrInfo(UserSessionModel session)
         {
+            if (string.IsNullOrEmpty(session.SamAcc)) return;
+
             try
             {
-                using var conn = _db.GetHRConnection();
+                using var conn = _db.GetQCDarConnection();
                 conn.Open();
 
-                // NOTE: Adjust column names to match your actual [onl_TBADUsers] schema
-                const string sql = @"
-                    SELECT u.SamAccountName, u.Email, u.DisplayName,
-                           m.SamAccountName AS ManagerSam,
-                           m.DisplayName    AS ManagerName,
-                           m.Email          AS ManagerEmail
-                    FROM   [BT_HR].[dbo].[onl_TBADUsers] u
-                    LEFT JOIN [BT_HR].[dbo].[onl_TBADUsers] m
-                           ON u.Manager COLLATE THAI_CI_AS = m.DistinguishedName COLLATE THAI_CI_AS
-                    WHERE  u.SamAccountName COLLATE THAI_CI_AS = @sam";
-
-                using var cmd = new SqlCommand(sql, conn);
-                cmd.Parameters.AddWithValue("@sam", session.SamAcc);
+                using var cmd = new SqlCommand("dbo.usp_GetUserHRInfo", conn)
+                {
+                    CommandType = System.Data.CommandType.StoredProcedure,
+                    CommandTimeout = 10
+                };
+                cmd.Parameters.AddWithValue("@SamAcc", session.SamAcc);
 
                 using var rdr = cmd.ExecuteReader();
-                if (rdr.Read())
+                while (rdr.Read())
                 {
-                    session.ManagerSamAcc = rdr["ManagerSam"]?.ToString() ?? string.Empty;
+                    // SP returns all users — match by SamAcc (case-insensitive)
+                    var rowSam = rdr["SamAcc"]?.ToString() ?? string.Empty;
+                    if (!rowSam.Equals(session.SamAcc, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    // Email — prefer HR value over empty SSO callback
+                    var hrEmail = rdr["Email"]?.ToString() ?? string.Empty;
+                    if (!string.IsNullOrEmpty(hrEmail))
+                        session.Email = hrEmail;
+
+                    // FullName — prefer SSO value (?fname=), fallback to HR DISPNAME
+                    if (string.IsNullOrEmpty(session.FullName))
+                        session.FullName = rdr["FullName"]?.ToString() ?? string.Empty;
+
+                    // DepCode (numeric code e.g. "450")
+                    session.DepCode = rdr["Dep_code"]?.ToString() ?? string.Empty;
+
+                    // Dept (display name) — prefer SSO ?depart=, fallback to HR DEPART
+                    if (string.IsNullOrEmpty(session.Dept))
+                        session.Dept = rdr["Department"]?.ToString() ?? string.Empty;
+
+                    // Manager info (via FUNC_GetInfoByFullName)
+                    session.ManagerSamAcc = rdr["ManagerSamAcc"]?.ToString() ?? string.Empty;
                     session.ManagerName = rdr["ManagerName"]?.ToString() ?? string.Empty;
                     session.ManagerEmail = rdr["ManagerEmail"]?.ToString() ?? string.Empty;
+
+                    break; // found — stop reading
                 }
             }
             catch
             {
-                // Non-fatal: HR lookup failure should not break login
+                // Non-fatal — HR lookup failure should not break login
             }
         }
 
-        // ── Private: Load DAR-specific role flags from BT_QCDAR ───────────────
+        // ── Private: Load DAR role flags from BT_QCDAR ───────────────────────
         private void LoadUserRoles(UserSessionModel session)
         {
             try
@@ -110,7 +141,7 @@ namespace BTQCDar.Controllers
 
                 const string sql = @"
                     SELECT IsApprover, IsMR, IsDCO, IsAdmin
-                    FROM   [BT_QCDAR].[dbo].[dar_UserRoles]
+                    FROM   [dbo].[dar_UserRoles]
                     WHERE  SamAcc COLLATE THAI_CI_AS = @sam";
 
                 using var cmd = new SqlCommand(sql, conn);
@@ -124,11 +155,10 @@ namespace BTQCDar.Controllers
                     session.IsDCO = (bool)(rdr["IsDCO"] ?? false);
                     session.IsAdmin = (bool)(rdr["IsAdmin"] ?? false);
                 }
-                // IsDarRequester = true for everyone (default in model)
             }
             catch
             {
-                // Non-fatal: roles default to requester-only if table not yet created
+                // Non-fatal — roles default to requester-only
             }
         }
     }

@@ -209,3 +209,199 @@ $(function () {
     });
 
 });
+
+
+    // ══════════════════════════════════════════════════════════════════
+    // 5. Approver Selection — load from API + checkbox + chips
+    // ══════════════════════════════════════════════════════════════════
+
+    var allApprovers = [];   // full dataset from API
+
+    // Unique key for each approver row: "SamAcc|DepCode|RoleType"
+    function approverKey(a) {
+        return a.samAcc + '|' + a.depCode + '|' + a.roleType;
+    }
+
+    // Load from /Dar/GetApprovalUsers
+    function loadApprovers() {
+        $.getJSON('/Dar/GetApprovalUsers')
+            .done(function (data) {
+                allApprovers = data;
+                populateFilters(data);
+                renderList(data);
+                $('#approverLoading').hide();
+                $('#approverList').show();
+            })
+            .fail(function () {
+                $('#approverLoading').html(
+                    '<span class="text-danger small">Failed to load approvers.</span>');
+            });
+    }
+
+    function populateFilters(data) {
+        // Roles
+        var roles = {};
+        data.forEach(function (a) { roles[a.roleType] = a.roleName; });
+        $.each(roles, function (rt, rn) {
+            $('#filterRole').append($('<option>').val(rt).text(rn));
+        });
+        // Departments
+        var depts = {};
+        data.forEach(function (a) { depts[a.depCode] = a.depart; });
+        $.each(depts, function (dc, dn) {
+            $('#filterDept').append($('<option>').val(dc).text(dn));
+        });
+    }
+
+    function renderList(data) {
+        var $list = $('#approverList').empty();
+
+        if (data.length === 0) {
+            $list.html('<div class="text-muted text-center py-3 small">No results found.</div>');
+            return;
+        }
+
+        // Group by Department
+        var groups = {};
+        data.forEach(function (a) {
+            var grp = a.depCode + ' — ' + a.depart;
+            if (!groups[grp]) groups[grp] = [];
+            groups[grp].push(a);
+        });
+
+        $.each(groups, function (grpLabel, members) {
+            var $grpHeader = $('<div class="px-3 py-1 bg-light border-bottom fw-semibold small text-muted">')
+                .text(grpLabel);
+            $list.append($grpHeader);
+
+            members.forEach(function (a) {
+                var key       = approverKey(a);
+                var isChecked = $('input[name="selectedApprovers"][value="' + key + '"]').length > 0;
+                var displayName = a.fullName || a.samAcc;
+
+                var $row = $('<label class="d-flex align-items-center gap-3 px-3 py-2 approver-row border-bottom" style="cursor:pointer">')
+                    .addClass(isChecked ? 'bg-danger bg-opacity-10' : '');
+
+                var $chk = $('<input type="checkbox" class="form-check-input flex-shrink-0 approver-chk">')
+                    .val(key)
+                    .prop('checked', isChecked)
+                    .attr('data-name',     displayName)
+                    .attr('data-role',     a.roleName)
+                    .attr('data-depart',   a.depart)
+                    .attr('data-samAcc',   a.samAcc);
+
+                var $info = $('<div class="flex-grow-1 small">');
+                $info.append($('<div class="fw-semibold">').text(displayName));
+                $info.append($('<div class="text-muted">').text(a.depart));
+
+                var $badge = $('<span class="badge rounded-pill bg-danger bg-opacity-75 ms-auto small">')
+                    .text(a.roleName);
+
+                $row.append($chk).append($info).append($badge);
+                $list.append($row);
+            });
+        });
+
+        // Checkbox change handler
+        $list.find('.approver-chk').on('change', function () {
+            var key      = $(this).val();
+            var $row     = $(this).closest('label');
+            var checked  = $(this).is(':checked');
+
+            $row.toggleClass('bg-danger bg-opacity-10', checked);
+
+            if (checked) {
+                addHiddenField(key);
+                addChip(key, $(this).data('name'), $(this).data('role'), $(this).data('depart'));
+            } else {
+                removeHiddenField(key);
+                removeChip(key);
+            }
+            updateCount();
+            if (getSelectedCount() > 0) clearApproverError();
+        });
+    }
+
+    // ── Hidden inputs submitted with the form ──────────────────────────────
+    function addHiddenField(key) {
+        if ($('input[name="selectedApprovers"][value="' + key + '"]').length === 0) {
+            $('<input type="hidden" name="selectedApprovers">').val(key).appendTo('#frmDar');
+        }
+    }
+    function removeHiddenField(key) {
+        $('input[name="selectedApprovers"][value="' + key + '"]').remove();
+    }
+
+    // ── Chips (visual summary) ─────────────────────────────────────────────
+    function addChip(key, name, role, dept) {
+        var $chip = $('<span class="badge d-inline-flex align-items-center gap-1 py-2 px-3" '
+                    + 'style="background:#dc3545;font-size:0.78rem;" data-key="' + key + '">')
+            .html('<i class="bi bi-person-check me-1"></i>'
+                + '<strong>' + $('<span>').text(name).html() + '</strong>'
+                + ' <span class="opacity-75">(' + $('<span>').text(role).html() + ')</span>');
+
+        var $del = $('<button type="button" class="btn-close btn-close-white ms-1" '
+                   + 'style="font-size:0.6rem;" aria-label="Remove">');
+        $del.on('click', function () {
+            removeChip(key);
+            removeHiddenField(key);
+            uncheckRow(key);
+            updateCount();
+        });
+        $chip.append($del);
+        $('#selectedChips').append($chip);
+    }
+    function removeChip(key) {
+        $('#selectedChips [data-key="' + key + '"]').remove();
+    }
+    function uncheckRow(key) {
+        // Uncheck the checkbox in the rendered list
+        $('.approver-chk[value="' + key + '"]')
+            .prop('checked', false)
+            .closest('label').removeClass('bg-danger bg-opacity-10');
+    }
+
+    function getSelectedCount() {
+        return $('input[name="selectedApprovers"]').length;
+    }
+    function updateCount() {
+        var n = getSelectedCount();
+        $('#approverCount').text(n + (n === 1 ? ' selected' : ' selected'));
+    }
+
+    // ── Approver required validation ──────────────────────────────────────
+    function clearApproverError() {
+        $('#approverInvalidMsg').hide();
+    }
+
+    // ── Live search + filter ───────────────────────────────────────────────
+    function getFiltered() {
+        var kw   = $('#approverSearch').val().toLowerCase().trim();
+        var role = $('#filterRole').val();
+        var dept = $('#filterDept').val();
+        return allApprovers.filter(function (a) {
+            var matchKw   = !kw   || (a.fullName + a.samAcc + a.depart).toLowerCase().includes(kw);
+            var matchRole = !role || String(a.roleType) === role;
+            var matchDept = !dept || a.depCode === dept;
+            return matchKw && matchRole && matchDept;
+        });
+    }
+
+    $('#approverSearch, #filterRole, #filterDept').on('input change', function () {
+        renderList(getFiltered());
+    });
+
+    // ── Extend form submit validation ─────────────────────────────────────
+    var originalSubmit = $('#frmDar').data('events');
+    $('#frmDar').on('submit.approver', function (e) {
+        if (getSelectedCount() === 0) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            $('#approverInvalidMsg').show();
+            $('html, body').animate({ scrollTop: $('#approverInvalidMsg').offset().top - 100 }, 300);
+        }
+    });
+
+    // Kick off
+    loadApprovers();
+
