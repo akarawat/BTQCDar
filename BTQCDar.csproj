@@ -9,8 +9,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      Microsoft.AspNetCore.Session ไม่ต้องใส่ใน .NET 8
+      Session เป็น built-in ใน Microsoft.AspNetCore.App framework แล้ว
+      ถ้าใส่ version เก่า (2.2.0) จะเกิด error NU1605: Package downgrade
+    -->
     <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
-    <PackageReference Include="Microsoft.AspNetCore.Session" Version="2.2.0" />
   </ItemGroup>
 
 </Project>

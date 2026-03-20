@@ -33,11 +33,11 @@ namespace BTQCDar.Controllers
             {
                 var session = new UserSessionModel
                 {
-                    UserId   = id    ?? string.Empty,
-                    SamAcc   = user  ?? string.Empty,
-                    Email    = email ?? string.Empty,
+                    UserId = id ?? string.Empty,
+                    SamAcc = user ?? string.Empty,
+                    Email = email ?? string.Empty,
                     FullName = fname ?? string.Empty,
-                    Dept     = depart ?? string.Empty,
+                    Dept = depart ?? string.Empty,
                 };
 
                 // Load HR info (manager) from BT_HR
@@ -51,7 +51,9 @@ namespace BTQCDar.Controllers
             }
 
             // 3. No session → redirect to SSO
-            var returnUrl = Uri.EscapeDataString($"{_settings.URLSITE}/Dashboards/Index");
+            // BT SSO appends params with "&" not "?", so returnUrl must end with "?"
+            // Result: https://host/Dashboards/Index?id=...&user=...&email=...
+            var returnUrl = Uri.EscapeDataString($"{_settings.URLSITE}/Dashboards/Index?");
             return Redirect($"{_settings.AuthenUrl}?url={returnUrl}");
         }
 
@@ -87,9 +89,9 @@ namespace BTQCDar.Controllers
                 using var rdr = cmd.ExecuteReader();
                 if (rdr.Read())
                 {
-                    session.ManagerSamAcc = rdr["ManagerSam"]?.ToString()  ?? string.Empty;
-                    session.ManagerName   = rdr["ManagerName"]?.ToString() ?? string.Empty;
-                    session.ManagerEmail  = rdr["ManagerEmail"]?.ToString() ?? string.Empty;
+                    session.ManagerSamAcc = rdr["ManagerSam"]?.ToString() ?? string.Empty;
+                    session.ManagerName = rdr["ManagerName"]?.ToString() ?? string.Empty;
+                    session.ManagerEmail = rdr["ManagerEmail"]?.ToString() ?? string.Empty;
                 }
             }
             catch
@@ -118,9 +120,9 @@ namespace BTQCDar.Controllers
                 if (rdr.Read())
                 {
                     session.IsDarApprover = (bool)(rdr["IsApprover"] ?? false);
-                    session.IsMR          = (bool)(rdr["IsMR"]       ?? false);
-                    session.IsDCO         = (bool)(rdr["IsDCO"]      ?? false);
-                    session.IsAdmin       = (bool)(rdr["IsAdmin"]     ?? false);
+                    session.IsMR = (bool)(rdr["IsMR"] ?? false);
+                    session.IsDCO = (bool)(rdr["IsDCO"] ?? false);
+                    session.IsAdmin = (bool)(rdr["IsAdmin"] ?? false);
                 }
                 // IsDarRequester = true for everyone (default in model)
             }
