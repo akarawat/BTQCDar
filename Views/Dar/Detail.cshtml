@@ -1,0 +1,228 @@
+@model BTQCDar.Models.DarMasterModel
+@{
+    ViewData["Title"] = "DAR: " + Model.DarNo;
+    var session = ViewBag.Session as BTQCDar.Models.UserSessionModel;
+    bool canApprove = session?.IsDarApprover == true || session?.IsAdmin == true;
+    bool canMR      = session?.IsMR == true || session?.IsAdmin == true;
+    bool canDCO     = session?.IsDCO == true || session?.IsAdmin == true;
+    bool canEdit    = (Model.Status == BTQCDar.Models.DarStatus.Draft &&
+                       Model.RequestedBySamAcc == session?.SamAcc) || session?.IsAdmin == true;
+}
+
+<div class="d-flex align-items-center mt-3 mb-3 gap-2">
+    <h5 class="mb-0">
+        <i class="bi bi-file-earmark-check me-1 text-danger"></i>
+        @Model.DarNo
+    </h5>
+    <span class="badge @Model.StatusLabel status-pill ms-1">
+        @{ /* inline badge colour via enum model */ }
+    </span>
+    <div class="ms-auto d-flex gap-2">
+        @if (canEdit)
+        {
+            <a href="/Dar/Edit/@Model.DarId" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-pencil me-1"></i>แก้ไข
+            </a>
+        }
+        @if (canApprove && Model.Status == BTQCDar.Models.DarStatus.PendingApproval)
+        {
+            <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalApprove">
+                <i class="bi bi-check-circle me-1"></i>Approve
+            </button>
+            <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#modalReject">
+                <i class="bi bi-x-circle me-1"></i>Reject
+            </button>
+        }
+        @if (canMR && Model.Status == BTQCDar.Models.DarStatus.PendingMR)
+        {
+            <button class="btn btn-sm btn-info text-white" data-bs-toggle="modal" data-bs-target="#modalMR">
+                <i class="bi bi-person-badge me-1"></i>MR Decision
+            </button>
+        }
+        @if (canDCO && Model.Status == BTQCDar.Models.DarStatus.PendingDCO)
+        {
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalDCO">
+                <i class="bi bi-journal-plus me-1"></i>DCO Register
+            </button>
+        }
+    </div>
+</div>
+
+<!-- Info sections -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-dar"><i class="bi bi-info-circle me-1"></i> รายละเอียด DAR</div>
+    <div class="card-body">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">DAR No.</dt>           <dd class="col-sm-9">@Model.DarNo</dd>
+            <dt class="col-sm-3">Document No.</dt>      <dd class="col-sm-9">@Model.DocumentNo</dd>
+            <dt class="col-sm-3">Document Name</dt>     <dd class="col-sm-9">@Model.DocumentName</dd>
+            <dt class="col-sm-3">ประเภท (Type)</dt>     <dd class="col-sm-9">@Model.DocType</dd>
+            <dt class="col-sm-3">มาตรฐาน (For)</dt>     <dd class="col-sm-9">@Model.ForStandard</dd>
+            <dt class="col-sm-3">วัตถุประสงค์</dt>      <dd class="col-sm-9">@Model.Purpose @Model.PurposeOther</dd>
+            <dt class="col-sm-3">เนื้อหา</dt>           <dd class="col-sm-9">@Model.Content</dd>
+            <dt class="col-sm-3">เหตุผล</dt>            <dd class="col-sm-9">@Model.ReasonBehindPurpose</dd>
+            <dt class="col-sm-3">Effective Date</dt>    <dd class="col-sm-9">@(Model.EffectiveDate?.ToString("dd/MM/yyyy") ?? "-")</dd>
+            <dt class="col-sm-3">Revision No.</dt>      <dd class="col-sm-9">@Model.RevisionNo</dd>
+            <dt class="col-sm-3">Distribution</dt>      <dd class="col-sm-9">@Model.DistributionList</dd>
+            <dt class="col-sm-3">Attachment</dt>        <dd class="col-sm-9">@(Model.HasAttachment ? "มี" : "ไม่มี")</dd>
+        </dl>
+    </div>
+</div>
+
+<!-- Workflow timeline -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-dar"><i class="bi bi-arrow-right-circle me-1"></i> Workflow Status</div>
+    <div class="card-body">
+        @{
+            string StepClass(BTQCDar.Models.DarStatus threshold) =>
+                Model.Status > threshold ? "done" :
+                Model.Status == threshold ? "active" : "wait";
+        }
+        <div class="workflow-step @StepClass(BTQCDar.Models.DarStatus.Draft)">
+            <div class="step-icon"><i class="bi bi-pencil"></i></div>
+            <div>
+                <div class="fw-semibold">Requested</div>
+                <small class="text-muted">@Model.RequestedByName — @Model.RequestedDate.ToString("dd/MM/yyyy")</small>
+            </div>
+        </div>
+        <div class="workflow-step @StepClass(BTQCDar.Models.DarStatus.PendingApproval)">
+            <div class="step-icon"><i class="bi bi-person-check"></i></div>
+            <div>
+                <div class="fw-semibold">Approved by</div>
+                <small class="text-muted">@(Model.ApprovedByName ?? "รอดำเนินการ")</small>
+            </div>
+        </div>
+        <div class="workflow-step @StepClass(BTQCDar.Models.DarStatus.PendingMR)">
+            <div class="step-icon"><i class="bi bi-person-badge"></i></div>
+            <div>
+                <div class="fw-semibold">MR</div>
+                <small class="text-muted">
+                    @if (Model.MRAgree.HasValue)
+                    { @(Model.MRAgree.Value ? "Agree" : "Not Agree") <text> — </text> @Model.MRSamAcc }
+                    else { <text>รอดำเนินการ</text> }
+                </small>
+            </div>
+        </div>
+        <div class="workflow-step @StepClass(BTQCDar.Models.DarStatus.PendingDCO)">
+            <div class="step-icon"><i class="bi bi-journal-check"></i></div>
+            <div>
+                <div class="fw-semibold">DCO Registered</div>
+                <small class="text-muted">@(Model.DocRegisteredDate?.ToString("dd/MM/yyyy") ?? "รอดำเนินการ")</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(Model.Remarks))
+{
+    <div class="alert alert-info"><i class="bi bi-chat-left-text me-1"></i> <strong>หมายเหตุ:</strong> @Model.Remarks</div>
+}
+
+<!-- ── Modals ──────────────────────────────────────────────────────── -->
+@if (canApprove)
+{
+    <!-- Approve Modal -->
+    <div class="modal fade" id="modalApprove" tabindex="-1">
+        <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h6 class="modal-title"><i class="bi bi-check-circle me-1"></i>Approve DAR</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formApprove" asp-action="Approve" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.DarId" />
+                    <label class="form-label small">หมายเหตุ (ถ้ามี)</label>
+                    <textarea name="remarks" class="form-control" rows="2"></textarea>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">ยกเลิก</button>
+                <button id="btnSubmitApprove" class="btn btn-success btn-sm">ยืนยัน Approve</button>
+            </div>
+        </div></div>
+    </div>
+
+    <!-- Reject Modal -->
+    <div class="modal fade" id="modalReject" tabindex="-1">
+        <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h6 class="modal-title"><i class="bi bi-x-circle me-1"></i>Reject DAR</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formReject" asp-action="Reject" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.DarId" />
+                    <label class="form-label small">เหตุผลการ Reject <span class="text-danger">*</span></label>
+                    <textarea name="remarks" class="form-control" rows="2" required></textarea>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">ยกเลิก</button>
+                <button id="btnSubmitReject" class="btn btn-danger btn-sm">ยืนยัน Reject</button>
+            </div>
+        </div></div>
+    </div>
+}
+
+@if (canMR)
+{
+    <div class="modal fade" id="modalMR" tabindex="-1">
+        <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h6 class="modal-title"><i class="bi bi-person-badge me-1"></i>MR Decision</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formMRAgree" asp-action="MRAgree" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.DarId" />
+                    <div class="d-flex gap-4 mb-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="agree" value="true" id="mrAgree" checked />
+                            <label class="form-check-label" for="mrAgree">Agree</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="agree" value="false" id="mrNotAgree" />
+                            <label class="form-check-label" for="mrNotAgree">Not Agree</label>
+                        </div>
+                    </div>
+                    <label class="form-label small">หมายเหตุ</label>
+                    <textarea name="remarks" class="form-control" rows="2"></textarea>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">ยกเลิก</button>
+                <button id="btnSubmitMRAgree" class="btn btn-info btn-sm text-white">บันทึก</button>
+            </div>
+        </div></div>
+    </div>
+}
+
+@if (canDCO)
+{
+    <div class="modal fade" id="modalDCO" tabindex="-1">
+        <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h6 class="modal-title"><i class="bi bi-journal-plus me-1"></i>DCO Register</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formDCO" asp-action="DCORegister" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.DarId" />
+                    <label class="form-label small">Doc Registered Date <span class="text-danger">*</span></label>
+                    <input type="date" name="registeredDate" class="form-control form-control-sm mb-2"
+                           value="@DateTime.Now.ToString("yyyy-MM-dd")" required />
+                    <label class="form-label small">หมายเหตุ</label>
+                    <textarea name="remarks" class="form-control" rows="2"></textarea>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">ยกเลิก</button>
+                <button id="btnSubmitDCO" class="btn btn-primary btn-sm">ลงทะเบียน</button>
+            </div>
+        </div></div>
+    </div>
+}

@@ -1,0 +1,23 @@
+## .NET / ASP.NET Core
+bin/
+obj/
+publish/
+*.user
+*.suo
+.vs/
+.idea/
+
+## Secrets / Connection strings (DO NOT COMMIT)
+appsettings.Production.json
+secrets.json
+
+## Logs
+logs/
+*.log
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Node (if you add npm tools later)
+node_modules/
