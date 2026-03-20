@@ -7,7 +7,7 @@ namespace BTQCDar.Services
     /// </summary>
     public interface IDbService
     {
-        SqlConnection GetQCDarConnection();
-        SqlConnection GetHRConnection();
+        //SqlConnection GetQCDarConnection();
+        //SqlConnection GetHRConnection();
     }
 }

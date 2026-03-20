@@ -23,7 +23,7 @@ namespace BTQCDar.Controllers
         // ── GET /Dashboards/Index ─────────────────────────────────────────────
         public IActionResult Index(string? id, string? user, string? email,
                                    string? fname, string? depart)
-        {
+                    {
             // 1. Already logged in → show dashboard
             var existing = GetSession();
             if (existing != null && !string.IsNullOrEmpty(existing.SamAcc))
@@ -83,7 +83,8 @@ namespace BTQCDar.Controllers
 
             try
             {
-                using var conn = _db.GetQCDarConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
 
                 using var cmd = new SqlCommand("dbo.usp_GetUserHRInfo", conn)
@@ -131,21 +132,21 @@ namespace BTQCDar.Controllers
             }
         }
 
-        // ── Private: Load DAR role flags from BT_QCDAR ───────────────────────
+        // ── Private: Load DAR role flags via usp_GetUserRoles ───────────────
         private void LoadUserRoles(UserSessionModel session)
         {
             try
             {
-                using var conn = _db.GetQCDarConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
 
-                const string sql = @"
-                    SELECT IsApprover, IsMR, IsDCO, IsAdmin
-                    FROM   [dbo].[dar_UserRoles]
-                    WHERE  SamAcc COLLATE THAI_CI_AS = @sam";
-
-                using var cmd = new SqlCommand(sql, conn);
-                cmd.Parameters.AddWithValue("@sam", session.SamAcc);
+                using var cmd = new SqlCommand("dbo.usp_GetUserRoles", conn)
+                {
+                    CommandType = System.Data.CommandType.StoredProcedure,
+                    CommandTimeout = 10
+                };
+                cmd.Parameters.AddWithValue("@SamAcc", session.SamAcc);
 
                 using var rdr = cmd.ExecuteReader();
                 if (rdr.Read())
@@ -161,5 +162,6 @@ namespace BTQCDar.Controllers
                 // Non-fatal — roles default to requester-only
             }
         }
+
     }
 }

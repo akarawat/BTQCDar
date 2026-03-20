@@ -8,6 +8,7 @@ namespace BTQCDar.Controllers
 {
     public class DarController : BaseController
     {
+        private readonly IConfiguration _config;
         private readonly IDbService          _db;
         private readonly IWebHostEnvironment _env;
         private readonly SendMailController  _mailer;
@@ -296,7 +297,8 @@ namespace BTQCDar.Controllers
             var list = new List<DarApproverOptionModel>();
             try
             {
-                using var conn = _db.GetQCDarConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
                 const string sql = @"
                     SELECT  u.SamAcc, u.FullName, u.DepCode, u.Depart,
@@ -341,7 +343,8 @@ namespace BTQCDar.Controllers
             var list = new List<DarApproverModel>();
             try
             {
-                using var conn = _db.GetQCDarConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
                 const string sql = @"
                     SELECT  a.Id, a.DarId, a.SamAcc, a.FullName,
@@ -385,7 +388,8 @@ namespace BTQCDar.Controllers
 
             try
             {
-                using var conn = _db.GetQCDarConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
                 var sql = session.IsAdmin
                     ? @"SELECT
@@ -434,7 +438,8 @@ namespace BTQCDar.Controllers
         {
             try
             {
-                using var conn = _db.GetQCDarConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
                 const string sql = "SELECT SamAcc, FullName FROM [dbo].[dar_UserRoles] WHERE IsApprover=1";
                 using var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
@@ -458,7 +463,8 @@ namespace BTQCDar.Controllers
             if (string.IsNullOrEmpty(samAcc)) return string.Empty;
             try
             {
-                using var conn = _db.GetHRConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
                 const string sql = "SELECT TOP 1 Email FROM [dbo].[onl_TBADUsers] WHERE SamAccountName COLLATE THAI_CI_AS = @sam";
                 using var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
@@ -473,7 +479,8 @@ namespace BTQCDar.Controllers
         {
             try
             {
-                using var conn = _db.GetQCDarConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
                 const string sql = "SELECT TOP 1 SamAcc FROM [dbo].[dar_UserRoles] WHERE IsMR=1";
                 using var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
@@ -488,7 +495,8 @@ namespace BTQCDar.Controllers
         {
             try
             {
-                using var conn = _db.GetQCDarConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
                 const string sql = "SELECT TOP 1 SamAcc FROM [dbo].[dar_UserRoles] WHERE IsDCO=1";
                 using var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
@@ -523,7 +531,8 @@ namespace BTQCDar.Controllers
             // selectedKeys format: "SamAcc|DepCode|RoleType"
             if (selectedKeys == null || !selectedKeys.Any()) return;
 
-            using var conn = _db.GetQCDarConnection();
+            var connStr = _config.GetConnectionString("BT_QCDAR");
+            using var conn = new SqlConnection(connStr);
             conn.Open();
 
             // Delete existing (replace all)
@@ -577,7 +586,8 @@ namespace BTQCDar.Controllers
             var year = DateTime.Now.Year;
             try
             {
-                using var conn = _db.GetQCDarConnection();
+                var connStr = _config.GetConnectionString("BT_QCDAR");
+                using var conn = new SqlConnection(connStr);
                 conn.Open();
                 const string sql = @"
                     SELECT ISNULL(MAX(CAST(RIGHT(DarNo,5) AS INT)), 0) + 1
@@ -593,7 +603,8 @@ namespace BTQCDar.Controllers
 
         private int InsertDar(DarMasterModel m)
         {
-            using var conn = _db.GetQCDarConnection();
+            var connStr = _config.GetConnectionString("BT_QCDAR");
+            using var conn = new SqlConnection(connStr);
             conn.Open();
             const string sql = @"
                 INSERT INTO [dbo].[dar_Master]
@@ -621,7 +632,8 @@ namespace BTQCDar.Controllers
 
         private void UpdateDar(DarMasterModel m)
         {
-            using var conn = _db.GetQCDarConnection();
+            var connStr = _config.GetConnectionString("BT_QCDAR");
+            using var conn = new SqlConnection(connStr);
             conn.Open();
             const string sql = @"
                 UPDATE [dbo].[dar_Master] SET
@@ -648,7 +660,8 @@ namespace BTQCDar.Controllers
                                   DateTime? approvedDate = null,
                                   string? remarks = null)
         {
-            using var conn = _db.GetQCDarConnection();
+            var connStr = _config.GetConnectionString("BT_QCDAR");
+            using var conn = new SqlConnection(connStr);
             conn.Open();
             const string sql = @"
                 UPDATE [dbo].[dar_Master] SET
@@ -672,7 +685,8 @@ namespace BTQCDar.Controllers
         private void UpdateMR(int darId, bool agree, string mrSam, DateTime mrDate,
                                DarStatus nextStatus, string? remarks)
         {
-            using var conn = _db.GetQCDarConnection();
+            var connStr = _config.GetConnectionString("BT_QCDAR");
+            using var conn = new SqlConnection(connStr);
             conn.Open();
             const string sql = @"
                 UPDATE [dbo].[dar_Master] SET
@@ -693,7 +707,8 @@ namespace BTQCDar.Controllers
         private void UpdateDCO(int darId, string dcoSam, DateTime regDate,
                                DarStatus nextStatus, string? remarks)
         {
-            using var conn = _db.GetQCDarConnection();
+            var connStr = _config.GetConnectionString("BT_QCDAR");
+            using var conn = new SqlConnection(connStr);
             conn.Open();
             const string sql = @"
                 UPDATE [dbo].[dar_Master] SET
@@ -712,7 +727,8 @@ namespace BTQCDar.Controllers
 
         private DarMasterModel? GetDarById(int id)
         {
-            using var conn = _db.GetQCDarConnection();
+            var connStr = _config.GetConnectionString("BT_QCDAR");
+            using var conn = new SqlConnection(connStr);
             conn.Open();
             const string sql = "SELECT * FROM [dbo].[dar_Master] WHERE DarId=@id";
             using var cmd = new SqlCommand(sql, conn);
@@ -725,7 +741,8 @@ namespace BTQCDar.Controllers
         private List<DarListItemModel> GetDarList(UserSessionModel session)
         {
             var list = new List<DarListItemModel>();
-            using var conn = _db.GetQCDarConnection();
+            var connStr = _config.GetConnectionString("BT_QCDAR");
+            using var conn = new SqlConnection(connStr);
             conn.Open();
 
             // Admins see all; requesters see their own
@@ -758,7 +775,8 @@ namespace BTQCDar.Controllers
         private List<DarListItemModel> GetPendingList(UserSessionModel session)
         {
             var list = new List<DarListItemModel>();
-            using var conn = _db.GetQCDarConnection();
+            var connStr = _config.GetConnectionString("BT_QCDAR");
+            using var conn = new SqlConnection(connStr);
             conn.Open();
 
             // Filter pending items based on user's role
