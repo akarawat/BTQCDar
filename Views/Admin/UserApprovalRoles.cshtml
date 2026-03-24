@@ -1,0 +1,84 @@
+@{
+    ViewData["Title"] = "User Approval Roles";
+    var session = ViewBag.Session as BTQCDar.Models.UserSessionModel;
+}
+
+<div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h5 class="mb-0">
+        <i class="bi bi-shield-check me-2 text-danger"></i>User Approval Roles
+    </h5>
+    <span class="badge bg-dark">Admin Only</span>
+</div>
+
+<!-- Filter Bar -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2">
+            <div class="col-md-4">
+                <input type="text" id="userSearch" class="form-control form-control-sm"
+                       placeholder="Search name, SamAcc, department...">
+            </div>
+            <div class="col-md-3">
+                <select id="filterDept" class="form-select form-select-sm">
+                    <option value="">-- All Departments --</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select id="filterRole" class="form-select form-select-sm">
+                    <option value="">-- All Roles --</option>
+                </select>
+            </div>
+            <div class="col-md-2 text-end">
+                <button class="btn btn-danger btn-sm" id="btnRefresh">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Table -->
+<div class="card shadow-sm">
+    <div class="card-header fw-semibold small d-flex justify-content-between">
+        <span><i class="bi bi-people me-1"></i>All AD Users</span>
+        <span class="text-muted" id="userCount"></span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0" id="tblUsers">
+            <thead class="table-dark">
+                <tr>
+                    <th>SamAcc</th>
+                    <th>Full Name</th>
+                    <th>Department</th>
+                    <th>Manager</th>
+                    <th>Current Role</th>
+                    <th style="width:220px">Assign Role</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="tblBody">
+                <tr>
+                    <td colspan="7" class="text-center py-4 text-muted">
+                        <span class="spinner-border spinner-border-sm me-2"></span>Loading users...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999">
+    <div id="toastMsg" class="toast align-items-center border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body fw-semibold" id="toastText"></div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- Hidden CSRF token for AJAX POSTs -->
+    <form id="frmCsrf" style="display:none">@Html.AntiForgeryToken()</form>
+    <script src="~/js/admin-userroles.js" asp-append-version="true"></script>
+}

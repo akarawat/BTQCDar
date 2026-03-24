@@ -39,51 +39,71 @@
             <span class="navbar-toggler-icon"></span>
         </button>
 
-        <div class="collapse navbar-collapse" id="navMain">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                    <a class="nav-link" href="/Dashboards/Index"><i class="bi bi-house me-1"></i>Home</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/Dar/Create"><i class="bi bi-plus-circle me-1"></i>New DAR</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/Dar/Index"><i class="bi bi-list-ul me-1"></i>My DARs</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/Dar/Pending">
-                        <i class="bi bi-inbox me-1"></i>Pending Actions
-                    </a>
-                </li>
-            </ul>
-
-            @{
-                var _json = Context.Session.GetString("UserSession");
-                BTQCDar.Models.UserSessionModel? _user = null;
-                if (!string.IsNullOrEmpty(_json))
-                    _user = System.Text.Json.JsonSerializer.Deserialize<BTQCDar.Models.UserSessionModel>(_json);
-            }
-            @if (_user != null)
-            {
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle me-1"></i>@_user.FullName
-                            @if (_user.IsAdmin) { <span class="badge bg-warning text-dark ms-1">Admin</span> }
-                            @if (_user.IsMR)    { <span class="badge bg-info text-dark ms-1">MR</span> }
-                            @if (_user.IsDCO)   { <span class="badge bg-primary ms-1">DCO</span> }
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><span class="dropdown-item-text small text-muted">@_user.SamAcc | @_user.Dept</span></li>
-                            <li><hr class="dropdown-divider" /></li>
-                            <li><a class="dropdown-item text-danger" href="/Dashboards/Logout">
-                                <i class="bi bi-box-arrow-right me-1"></i>Logout
-                            </a></li>
-                        </ul>
+            <div class="collapse navbar-collapse" id="navMain">
+                @{
+                    // Declare _user ONCE at the top — reused in both nav menus
+                    var _json = Context.Session.GetString("UserSession");
+                    BTQCDar.Models.UserSessionModel? _user = null;
+                    if (!string.IsNullOrEmpty(_json))
+                        _user = System.Text.Json.JsonSerializer.Deserialize<BTQCDar.Models.UserSessionModel>(_json);
+                }
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/Dashboards/Index"><i class="bi bi-house me-1"></i>Home</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/Dar/Create"><i class="bi bi-plus-circle me-1"></i>New DAR</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/Dar/Index"><i class="bi bi-list-ul me-1"></i>My DARs</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/Dar/Pending">
+                            <i class="bi bi-inbox me-1"></i>Pending Actions
+                        </a>
+                    </li>
+                    @if (_user != null && _user.IsAdmin)
+                    {
+                        <li class="nav-item">
+                            <a class="nav-link" href="/Admin/UserApprovalRoles">
+                                <i class="bi bi-shield-check me-1"></i>User Approval Roles
+                            </a>
+                        </li>
+                    }
                 </ul>
-            }
-        </div>
+                @if (_user != null)
+                {
+                    <ul class="navbar-nav">
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                                <i class="bi bi-person-circle me-1"></i>@_user.FullName
+                                @if (_user.IsAdmin)
+                                {
+                                    <span class="badge bg-warning text-dark ms-1">Admin</span>
+                                }
+                                @if (_user.IsMR)
+                                {
+                                    <span class="badge bg-info text-dark ms-1">MR</span>
+                                }
+                                @if (_user.IsDCO)
+                                {
+                                    <span class="badge bg-primary ms-1">DCO</span>
+                                }
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><span class="dropdown-item-text small text-muted">@_user.SamAcc | @_user.Dept</span></li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <a class="dropdown-item text-danger" href="/Dashboards/Logout">
+                                        <i class="bi bi-box-arrow-right me-1"></i>Logout
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                }
+            </div>
+
     </div>
 </nav>
 

@@ -11,6 +11,15 @@
     </a>
 </div>
 
+<!-- Not Authorized banner (hidden by default) -->
+<div id="notAuthorizedBanner" class="alert alert-danger d-flex align-items-center gap-2 mb-3" style="display:none!important">
+    <i class="bi bi-shield-x fs-4"></i>
+    <div>
+        <strong>Not Authorized</strong> — Your role does not allow creating this document type.
+        Please select a different document type or contact your administrator.
+    </div>
+</div>
+
 <form asp-action="Create" method="post" enctype="multipart/form-data" id="frmDar">
     @Html.AntiForgeryToken()
 
@@ -21,56 +30,41 @@
         </div>
         <div class="card-body">
             <div class="row g-3">
-                <!-- Radio group wrapper — gets red border when invalid -->
                 <div class="col-md-6" id="grpDocType">
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" asp-for="DocType" value="1" id="dt1">
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="1" id="dt1">
                         <label class="form-check-label" for="dt1">Policy / Objective / Manual</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" asp-for="DocType" value="3" id="dt3">
-                        <label class="form-check-label" for="dt3">(Work/Inspection) Instruction</label>
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="2" id="dt2">
+                        <label class="form-check-label" for="dt2">Standard Procedure</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" asp-for="DocType" value="5" id="dt5">
-                        <label class="form-check-label" for="dt5">Supporting Document</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" asp-for="DocType" value="7" id="dt7">
-                        <label class="form-check-label" for="dt7">Document from External Origin</label>
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="3" id="dt3">
+                        <label class="form-check-label" for="dt3">Work Instruction</label>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" asp-for="DocType" value="2" id="dt2">
-                        <label class="form-check-label" for="dt2">Standard Procedure</label>
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="4" id="dt4">
+                        <label class="form-check-label" for="dt4">Supporting Document</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" asp-for="DocType" value="4" id="dt4">
-                        <label class="form-check-label" for="dt4">Form and Format</label>
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="5" id="dt5">
+                        <label class="form-check-label" for="dt5">Form and Format</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" asp-for="DocType" value="6" id="dt6">
-                        <label class="form-check-label" for="dt6">Drawing</label>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="radio" asp-for="DocType" value="8" id="dt8">
-                        <label class="form-check-label" for="dt8">Other (Specify)</label>
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="6" id="dt6">
+                        <label class="form-check-label" for="dt6">Document from External Origin / Drawing / Other</label>
                     </div>
                 </div>
                 <div id="dtInvalidMsg" class="col-12 text-danger small" style="display:none">
                     <i class="bi bi-exclamation-circle me-1"></i>Please select a document type.
                 </div>
-                <div class="col-12" id="dtOtherWrap" style="display:none">
-                    <input type="text" asp-for="DocTypeOther" class="form-control form-control-sm"
-                           placeholder="Specify document type...">
-                </div>
 
                 <!-- For standard -->
                 <div class="col-12 border-top pt-3">
-                    <label class="fw-semibold small text-muted mb-2">
-                        For <span class="text-danger">*</span>
-                    </label>
+                    <label class="fw-semibold small text-muted mb-2">For <span class="text-danger">*</span></label>
                     <div id="grpForStandard" class="d-flex flex-wrap gap-3">
                         <div class="form-check">
                             <input class="form-check-input" type="radio" asp-for="ForStandard" value="1" id="fs1">
@@ -213,17 +207,61 @@
         </div>
     </div>
 
-    <!-- ════ Attachment (File Upload) ════ -->
+    <!-- ════ Reviewer & Approver ════ -->
+    <div class="card shadow-sm mb-3" id="cardReviewerApprover" style="display:none">
+        <div class="card-header fw-semibold">
+            <i class="bi bi-people me-2"></i>Reviewer &amp; Approver
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- Reviewer -->
+                <div class="col-md-6">
+                    <label class="form-label small fw-semibold">
+                        Reviewer (ผู้ทบทวน) <span class="text-danger">*</span>
+                    </label>
+                    <div id="reviewerLoading" class="text-muted small" style="display:none">
+                        <span class="spinner-border spinner-border-sm me-1"></span>Loading...
+                    </div>
+                    <select id="ddlReviewer" name="ReviewerSamAcc"
+                            class="form-select form-select-sm req-select" required>
+                        <option value="">-- Select Reviewer --</option>
+                    </select>
+                    <input type="hidden" name="ReviewerName"  id="hdnReviewerName">
+                    <input type="hidden" name="ReviewerEmail" id="hdnReviewerEmail">
+                    <div id="reviewerInvalidMsg" class="text-danger small mt-1" style="display:none">
+                        <i class="bi bi-exclamation-circle me-1"></i>Please select a reviewer.
+                    </div>
+                </div>
+
+                <!-- Approver (fixed, auto-selected) -->
+                <div class="col-md-6">
+                    <label class="form-label small fw-semibold">
+                        Approver (ผู้อนุมัติ)
+                        <span class="badge bg-secondary ms-1 small">Auto-selected by document type</span>
+                    </label>
+                    <div id="approverLoading" class="text-muted small" style="display:none">
+                        <span class="spinner-border spinner-border-sm me-1"></span>Loading...
+                    </div>
+                    <select id="ddlApprover" name="ApproverSamAcc"
+                            class="form-select form-select-sm" disabled>
+                        <option value="">-- Select document type first --</option>
+                    </select>
+                    <input type="hidden" name="ApproverName"  id="hdnApproverName">
+                    <input type="hidden" name="ApproverEmail" id="hdnApproverEmail">
+                    <small class="text-muted" id="approverNote"></small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ════ Attachment ════ -->
     <div class="card shadow-sm mb-3">
         <div class="card-header fw-semibold">
             <i class="bi bi-paperclip me-2"></i>Attachment
         </div>
         <div class="card-body">
-            <!-- Hidden field — auto-set by JS when file is selected -->
             <input type="hidden" asp-for="HasAttachment" id="hdnHasAttachment" value="false">
-
-            <div class="upload-area border border-2 border-dashed rounded-3 p-4 text-center"
-                 id="uploadArea">
+            <div class="upload-area border border-2 border-dashed rounded-3 p-4 text-center" id="uploadArea">
                 <i class="bi bi-cloud-upload fs-1 text-muted"></i>
                 <p class="mb-1 mt-2 fw-semibold">Drag &amp; drop file here, or</p>
                 <label class="btn btn-outline-danger btn-sm mt-1" for="attachmentFile">
@@ -235,8 +273,6 @@
                     Accepted: PDF, Word, Excel, Image, ZIP &nbsp;|&nbsp; Max: 20 MB
                 </p>
             </div>
-
-            <!-- Preview panel (hidden until file chosen) -->
             <div id="filePreview" class="mt-3" style="display:none">
                 <div class="d-flex align-items-center gap-3 p-3 bg-light rounded border">
                     <i class="bi bi-file-earmark fs-2 text-danger" id="fileIcon"></i>
@@ -244,87 +280,11 @@
                         <div class="fw-semibold text-truncate" id="fileName"></div>
                         <div class="text-muted small" id="fileSize"></div>
                     </div>
-                    <button type="button" class="btn btn-outline-danger btn-sm" id="btnRemoveFile"
-                            title="Remove file">
+                    <button type="button" class="btn btn-outline-danger btn-sm" id="btnRemoveFile">
                         <i class="bi bi-x-lg"></i>
                     </button>
                 </div>
             </div>
-        </div>
-    </div>
-
-
-    <!-- ════ Approver Selection ════ -->
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-danger text-white fw-semibold">
-            <i class="bi bi-person-check me-2"></i>Approver Selection
-            <span class="text-warning ms-1">*</span>
-            <span class="badge bg-white text-danger ms-2 float-end" id="approverCount">0 selected</span>
-        </div>
-        <div class="card-body">
-
-            <!-- Search + Filter bar -->
-            <div class="row g-2 mb-3">
-                <div class="col-md-5">
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" id="approverSearch" class="form-control"
-                               placeholder="Search name, department...">
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <select id="filterRole" class="form-select form-select-sm">
-                        <option value="">-- All Roles --</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select id="filterDept" class="form-select form-select-sm">
-                        <option value="">-- All Departments --</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Approver list -->
-            <div id="approverListWrap" style="max-height:320px;overflow-y:auto;"
-                 class="border rounded">
-                <div id="approverLoading" class="text-center text-muted py-4">
-                    <div class="spinner-border spinner-border-sm me-2"></div>Loading...
-                </div>
-                <div id="approverList" style="display:none"></div>
-            </div>
-
-            <div id="approverInvalidMsg" class="text-danger small mt-2" style="display:none">
-                <i class="bi bi-exclamation-circle me-1"></i>Please select at least one approver.
-            </div>
-
-            <!-- Selected summary chips -->
-            <div id="selectedChips" class="d-flex flex-wrap gap-2 mt-3"></div>
-
-        </div>
-    </div>
-
-    <!-- ════ Distribution List ════ -->
-    <div class="card shadow-sm mb-3">
-        <div class="card-header fw-semibold">
-            <i class="bi bi-people me-2"></i>Distribution List
-        </div>
-        <div class="card-body">
-            <div class="row g-2 mb-3">
-                <div class="col-auto">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" asp-for="IsControlledCopy" id="chkCtrl">
-                        <label class="form-check-label" for="chkCtrl">Controlled Copy</label>
-                    </div>
-                </div>
-                <div class="col-auto">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" asp-for="IsUncontrolledCopy" id="chkUnctrl">
-                        <label class="form-check-label" for="chkUnctrl">Uncontrolled Copy</label>
-                    </div>
-                </div>
-            </div>
-            <textarea asp-for="DistributionList" class="form-control form-control-sm" rows="3"
-                      placeholder="List departments / sections..."></textarea>
         </div>
     </div>
 
@@ -337,11 +297,17 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label small fw-semibold">Full Name</label>
-                    <input type="text" class="form-control form-control-sm" value="@session?.FullName" readonly>
+                    <input type="text" class="form-control form-control-sm bg-light"
+                           value="@session?.FullName" readonly>
                     <input type="hidden" asp-for="RequestedByName"   value="@session?.FullName">
                     <input type="hidden" asp-for="RequestedBySamAcc" value="@session?.SamAcc">
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Department</label>
+                    <input type="text" class="form-control form-control-sm bg-light"
+                           value="@session?.Dept" readonly>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label small fw-semibold">Request Date</label>
                     <input type="text" class="form-control form-control-sm bg-light"
                            value="@DateTime.Now.ToString("dd/MM/yyyy")" readonly>
@@ -355,39 +321,21 @@
         <a href="/Dar/Index" class="btn btn-outline-secondary">
             <i class="bi bi-x-circle me-1"></i>Cancel
         </a>
-        <button type="submit" class="btn btn-danger" id="btnSubmit">
+        <button type="submit" class="btn btn-danger" id="btnSubmit" disabled>
             <i class="bi bi-send me-1"></i>Submit DAR
         </button>
     </div>
 </form>
 
 @section Styles {
-    <style>
-        /* Required radio group — error state */
-        .radio-group-invalid {
-            border: 2px solid #dc3545 !important;
-            border-radius: 6px;
-            padding: 8px 10px;
-            background-color: #fff5f5;
-        }
-
-        /* Upload drop zone */
-        .upload-area {
-            border-color: #dee2e6 !important;
-            transition: border-color 0.2s, background-color 0.2s;
-            cursor: pointer;
-        }
-        .upload-area.drag-over {
-            border-color: #dc3545 !important;
-            background-color: #fff5f5;
-        }
-        .upload-area.has-file {
-            border-color: #198754 !important;
-            background-color: #f0fff4;
-        }
-    </style>
+<style>
+    .radio-group-invalid { border:2px solid #dc3545!important;border-radius:6px;padding:8px 10px;background:#fff5f5; }
+    .upload-area { border-color:#dee2e6!important;transition:border-color .2s,background-color .2s;cursor:pointer; }
+    .upload-area.drag-over { border-color:#dc3545!important;background:#fff5f5; }
+    .upload-area.has-file  { border-color:#198754!important;background:#f0fff4; }
+</style>
 }
 
 @section Scripts {
-    <script src="~/js/dar-form.js" asp-append-version="true"></script>
+    <script src="~/js/dar-create.js" asp-append-version="true"></script>
 }

@@ -94,7 +94,18 @@ namespace BTQCDar.Models
         public string RequestedByName   { get; set; } = string.Empty;
         public DateTime RequestedDate   { get; set; } = DateTime.Now;
 
-        // Approver
+        // Reviewer (selected by creator on Create form)
+        public string ReviewerSamAcc { get; set; } = string.Empty;
+        public string ReviewerName   { get; set; } = string.Empty;
+        public string ReviewerEmail  { get; set; } = string.Empty;
+        public DateTime? ReviewedDate { get; set; }
+
+        // Approver (fixed role, auto-selected)
+        public string ApproverSamAcc { get; set; } = string.Empty;
+        public string ApproverName   { get; set; } = string.Empty;
+        public string ApproverEmail  { get; set; } = string.Empty;
+
+        // Legacy Approved fields (kept for backward compat)
         public string?   ApprovedBySamAcc { get; set; }
         public string?   ApprovedByName   { get; set; }
         public DateTime? ApprovedDate     { get; set; }
@@ -204,6 +215,48 @@ namespace BTQCDar.Models
         public int    RoleType { get; set; }
         public string RoleName { get; set; } = string.Empty;
         public int    SortOrder { get; set; }
+    }
+
+
+    // ─── DocType Flow Config ─────────────────────────────────────────────────
+    public class DocTypeFlowModel
+    {
+        public int    DocType           { get; set; }
+        public string DocTypeName       { get; set; } = string.Empty;
+        public string CreatorRoles      { get; set; } = string.Empty;
+        public string ReviewerRoles     { get; set; } = string.Empty;
+        public int    ApproverFixedRole { get; set; }
+    }
+
+    // ─── User dropdown item (Reviewer / Approver) ─────────────────────────────
+    public class UserDropdownModel
+    {
+        public string SamAcc     { get; set; } = string.Empty;
+        public string FullName   { get; set; } = string.Empty;
+        public string Email      { get; set; } = string.Empty;
+        public string DepCode    { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public int    RoleType   { get; set; }
+        public string RoleName   { get; set; } = string.Empty;
+        // Composite label for dropdown
+        public string Label => string.IsNullOrEmpty(FullName)
+                               ? SamAcc
+                               : $"{FullName} ({RoleName})";
+    }
+
+    // ─── AD User (for Admin page - from usp_GetAllUserFromAD) ─────────────────
+    public class ADUserModel
+    {
+        public string SamAcc        { get; set; } = string.Empty;
+        public string Email         { get; set; } = string.Empty;
+        public string FullName      { get; set; } = string.Empty;
+        public string DepCode       { get; set; } = string.Empty;
+        public string Department    { get; set; } = string.Empty;
+        public string ManagerSamAcc { get; set; } = string.Empty;
+        public string ManagerName   { get; set; } = string.Empty;
+        public string ManagerEmail  { get; set; } = string.Empty;
+        public int?   RoleType      { get; set; }
+        public string RoleName      { get; set; } = string.Empty;
     }
 
 }
