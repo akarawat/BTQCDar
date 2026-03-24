@@ -1,6 +1,3 @@
-using BTQCDar.Models;
-using BTQCDar.Services;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // ── MVC + Razor Views ─────────────────────────────────────────────────

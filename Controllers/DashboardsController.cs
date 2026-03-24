@@ -1,8 +1,3 @@
-using BTQCDar.Models;
-using BTQCDar.Services;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
-
 namespace BTQCDar.Controllers
 {
     public class DashboardsController : BaseController
@@ -23,7 +18,7 @@ namespace BTQCDar.Controllers
         // ── GET /Dashboards/Index ─────────────────────────────────────────────
         public IActionResult Index(string? id, string? user, string? email,
                                    string? fname, string? depart)
-                    {
+        {
             // 1. Already logged in → show dashboard
             var existing = GetSession();
             if (existing != null && !string.IsNullOrEmpty(existing.SamAcc))
@@ -49,10 +44,8 @@ namespace BTQCDar.Controllers
 
             // 3. No session → redirect to BT SSO
             // BT SSO appends params with "&", so returnUrl must already contain "?"
-            //var returnUrl = Uri.EscapeDataString($"{UrlSite}/Dashboards/Index?");
-            //return Redirect($"{AuthenUrl}?url={returnUrl}");
-            string returnUrl = $"{AuthenUrl}?url={UrlSite}";
-            return Redirect("https://btauthen.berninathailand.com/?url=https://localhost:5001/Dashboards/Index/");
+            var returnUrl = Uri.EscapeDataString($"{UrlSite}/Dashboards/Index?");
+            return Redirect($"{AuthenUrl}?url={returnUrl}");
         }
 
         // ── GET /Dashboards/Logout ────────────────────────────────────────────
@@ -83,8 +76,7 @@ namespace BTQCDar.Controllers
 
             try
             {
-                var connStr = _config.GetConnectionString("BT_QCDAR");
-                using var conn = new SqlConnection(connStr);
+                using var conn = _db.GetQCDarConnection();
                 conn.Open();
 
                 using var cmd = new SqlCommand("dbo.usp_GetUserHRInfo", conn)
@@ -137,8 +129,7 @@ namespace BTQCDar.Controllers
         {
             try
             {
-                var connStr = _config.GetConnectionString("BT_QCDAR");
-                using var conn = new SqlConnection(connStr);
+                using var conn = _db.GetQCDarConnection();
                 conn.Open();
 
                 using var cmd = new SqlCommand("dbo.usp_GetUserRoles", conn)
@@ -162,6 +153,5 @@ namespace BTQCDar.Controllers
                 // Non-fatal — roles default to requester-only
             }
         }
-
     }
 }
