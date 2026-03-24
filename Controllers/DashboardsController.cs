@@ -27,10 +27,12 @@ namespace BTQCDar.Controllers
             // 2. SSO callback — params present in query string
             if (!string.IsNullOrEmpty(user))
             {
+                string[] userDomain = user.Split('\\');
+
                 var session = new UserSessionModel
                 {
                     UserId = id ?? string.Empty,
-                    SamAcc = user ?? string.Empty,
+                    SamAcc = userDomain[1] ?? string.Empty,
                     Email = email ?? string.Empty,
                     FullName = fname ?? string.Empty,
                     Dept = depart ?? string.Empty,
@@ -44,8 +46,8 @@ namespace BTQCDar.Controllers
 
             // 3. No session → redirect to BT SSO
             // BT SSO appends params with "&", so returnUrl must already contain "?"
-            var returnUrl = Uri.EscapeDataString($"{UrlSite}/Dashboards/Index?");
-            return Redirect($"{AuthenUrl}?url={returnUrl}");
+            //var returnUrl = AuthenUrl;
+            return Redirect(AuthenUrl);
         }
 
         // ── GET /Dashboards/Logout ────────────────────────────────────────────
