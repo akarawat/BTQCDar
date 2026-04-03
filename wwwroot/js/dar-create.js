@@ -2,13 +2,13 @@
  * dar-create.js — DAR Create page
  * Pattern: cshtml → AJAX → Controller → SP → DB
  *
- * DocType 1–6  : ผ่าน Flow (CheckCreatorPermission + SP dropdown)
- * DocType 7–8  : ไม่ผ่าน Flow — เลือก Reviewer/Approver จาก All Users โดยตรง
+ * DocType 1-6  : Uses flow rules (CheckCreatorPermission + SP dropdown)
+ * DocType 7-8  : Free flow — select Reviewer/Approver from All Users directly
  */
 
 $(function () {
 
-    // DocType ที่ไม่ต้องผ่าน Flow approval
+    // DocType that bypasses the approval flow
     var FREE_TYPES = [7, 8];
 
     // ══════════════════════════════════════════════════════════════════
@@ -18,7 +18,7 @@ $(function () {
         var docType = parseInt($(this).val());
         clearRadioError('grpDocType', 'dtInvalidMsg');
 
-        // Show/hide ForStandard section — dt7/dt8 ไม่บังคับ
+        // Show/hide ForStandard section — optional for dt7/dt8
         if (FREE_TYPES.indexOf(docType) >= 0) {
             $('#forStandardSection').hide();
             $('input[name="ForStandard"]').prop('checked', false);
@@ -32,7 +32,7 @@ $(function () {
         resetReviewerApprover();
 
         if (FREE_TYPES.indexOf(docType) >= 0) {
-            // dt7/dt8 — ไม่ check permission, load all users
+            // dt7/dt8 — skip permission check, load all users
             loadAllUsersForReviewer();
             loadAllUsersForApprover();
         } else {
@@ -92,7 +92,7 @@ $(function () {
     }
 
     // ══════════════════════════════════════════════════════════════════
-    // 4. Load All Users — สำหรับ dt7/dt8 (free selection)
+    // 4. Load All Users — for dt7/dt8 (free selection)
     // ══════════════════════════════════════════════════════════════════
     function loadAllUsersForReviewer() {
         fillDropdown('#ddlReviewer', '#reviewerLoading',

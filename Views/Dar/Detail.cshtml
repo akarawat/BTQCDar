@@ -193,7 +193,7 @@
                                 <td><span class="badge bg-success">Done</span></td>
                             </tr>
                             <tr>
-                                <td>Reviewer (ผู้ทบทวน)</td>
+                                <td>Reviewer</td>
                                 <td>@(string.IsNullOrEmpty(Model.ReviewerName) ? (Model.ReviewerSamAcc ?? "—") : Model.ReviewerName)</td>
                                 <td>@(Model.ReviewedDate?.ToString("dd/MM/yyyy") ?? "—")</td>
                                 <td>
@@ -214,7 +214,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td>Approver (ผู้อนุมัติ)</td>
+                                <td>Approver</td>
                                 <td>@(string.IsNullOrEmpty(Model.ApproverName) ? (Model.ApproverSamAcc ?? "—") : Model.ApproverName)</td>
                                 <td>@(Model.ApprovedDate?.ToString("dd/MM/yyyy") ?? "—")</td>
                                 <td>

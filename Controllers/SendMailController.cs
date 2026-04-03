@@ -17,7 +17,8 @@ namespace BTQCDar.Controllers
     {
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AppSettingsModel _settings;
-
+        private readonly IConfiguration _config;
+        private string EmailDebugFlag => _config["TBCorApiServices:EmailDebugFlag"] ?? string.Empty;
         public SendMailController(IHttpClientFactory httpClientFactory,
                                   IOptions<AppSettingsModel> settings)
         {
@@ -43,6 +44,11 @@ namespace BTQCDar.Controllers
                                           string? ccEmail = null)
         {
             if (string.IsNullOrWhiteSpace(toEmail)) return false;
+            if (EmailDebugFlag == "1")
+            {
+                Console.WriteLine($"[SendMail] Skipping email to {toEmail} (debug mode)");
+                return false;
+            }
 
             try
             {
