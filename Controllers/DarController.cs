@@ -978,38 +978,44 @@ namespace BTQCDar.Controllers
             };
         }
 
+        /// <summary>
+        /// Helper: convert null/empty string to "" for SQL params.
+        /// ADO.NET AddWithValue(null) sends DBNull which causes "parameter not supplied" error.
+        /// </summary>
+        private static string S(string? v) => v ?? string.Empty;
+
         private static void BindDarParams(SqlCommand cmd, DarMasterModel m)
         {
-            cmd.Parameters.AddWithValue("@DarNo", m.DarNo);
+            cmd.Parameters.AddWithValue("@DarNo", S(m.DarNo));
             cmd.Parameters.AddWithValue("@DocType", (int)m.DocType);
-            cmd.Parameters.AddWithValue("@DocTypeOther", m.DocTypeOther);
+            cmd.Parameters.AddWithValue("@DocTypeOther", S(m.DocTypeOther));
             cmd.Parameters.AddWithValue("@ForStandard", (int)m.ForStandard);
-            cmd.Parameters.AddWithValue("@ForStandardOther", m.ForStandardOther);
-            cmd.Parameters.AddWithValue("@DocumentNo", m.DocumentNo);
-            cmd.Parameters.AddWithValue("@DocumentName", m.DocumentName);
+            cmd.Parameters.AddWithValue("@ForStandardOther", S(m.ForStandardOther));
+            cmd.Parameters.AddWithValue("@DocumentNo", S(m.DocumentNo));
+            cmd.Parameters.AddWithValue("@DocumentName", S(m.DocumentName));
             cmd.Parameters.AddWithValue("@Purpose", (int)m.Purpose);
-            cmd.Parameters.AddWithValue("@PurposeOther", m.PurposeOther);
-            cmd.Parameters.AddWithValue("@Content", m.Content);
+            cmd.Parameters.AddWithValue("@PurposeOther", S(m.PurposeOther));
+            cmd.Parameters.AddWithValue("@Content", S(m.Content));
             cmd.Parameters.AddWithValue("@HasAttachment", m.HasAttachment);
-            cmd.Parameters.AddWithValue("@AttachmentFileName", m.AttachmentFileName);
-            cmd.Parameters.AddWithValue("@DocStatusUnderRequest", m.DocStatusUnderRequest);
-            cmd.Parameters.AddWithValue("@ReviewerSamAcc", m.ReviewerSamAcc);
-            cmd.Parameters.AddWithValue("@ReviewerName", m.ReviewerName);
-            cmd.Parameters.AddWithValue("@ReviewerEmail", m.ReviewerEmail);
-            cmd.Parameters.AddWithValue("@ApproverSamAcc", m.ApproverSamAcc);
-            cmd.Parameters.AddWithValue("@ApproverName", m.ApproverName);
-            cmd.Parameters.AddWithValue("@ApproverEmail", m.ApproverEmail);
-            cmd.Parameters.AddWithValue("@ReasonBehindPurpose", m.ReasonBehindPurpose);
+            cmd.Parameters.AddWithValue("@AttachmentFileName", S(m.AttachmentFileName));
+            cmd.Parameters.AddWithValue("@DocStatusUnderRequest", S(m.DocStatusUnderRequest));
+            cmd.Parameters.AddWithValue("@ReviewerSamAcc", S(m.ReviewerSamAcc));
+            cmd.Parameters.AddWithValue("@ReviewerName", S(m.ReviewerName));
+            cmd.Parameters.AddWithValue("@ReviewerEmail", S(m.ReviewerEmail));
+            cmd.Parameters.AddWithValue("@ApproverSamAcc", S(m.ApproverSamAcc));
+            cmd.Parameters.AddWithValue("@ApproverName", S(m.ApproverName));
+            cmd.Parameters.AddWithValue("@ApproverEmail", S(m.ApproverEmail));
+            cmd.Parameters.AddWithValue("@ReasonBehindPurpose", S(m.ReasonBehindPurpose));
             cmd.Parameters.AddWithValue("@EffectiveDate", (object?)m.EffectiveDate ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@RevisionNo", m.RevisionNo);
+            cmd.Parameters.AddWithValue("@RevisionNo", S(m.RevisionNo));
             cmd.Parameters.AddWithValue("@IsControlledCopy", m.IsControlledCopy);
             cmd.Parameters.AddWithValue("@IsUncontrolledCopy", m.IsUncontrolledCopy);
-            cmd.Parameters.AddWithValue("@DistributionList", m.DistributionList);
-            cmd.Parameters.AddWithValue("@RequestedBySamAcc", m.RequestedBySamAcc);
-            cmd.Parameters.AddWithValue("@RequestedByName", m.RequestedByName);
+            cmd.Parameters.AddWithValue("@DistributionList", S(m.DistributionList));
+            cmd.Parameters.AddWithValue("@RequestedBySamAcc", S(m.RequestedBySamAcc));
+            cmd.Parameters.AddWithValue("@RequestedByName", S(m.RequestedByName));
             cmd.Parameters.AddWithValue("@RequestedDate", m.RequestedDate);
             cmd.Parameters.AddWithValue("@Status", (int)m.Status);
-            cmd.Parameters.AddWithValue("@Remarks", m.Remarks);
+            cmd.Parameters.AddWithValue("@Remarks", S(m.Remarks));
         }
     }
 }
