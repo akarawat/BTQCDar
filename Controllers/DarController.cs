@@ -100,10 +100,12 @@ namespace BTQCDar.Controllers
 
                 // Notify Reviewer — fire-and-forget
                 if (!string.IsNullOrEmpty(model.ReviewerEmail))
-                    _ = _mailer.NotifyApproverAsync(
+                    _ = _mailer.NotifyReviewerAsync(
                             model.ReviewerEmail,
                             model.DarNo, model.DocumentName,
-                            model.RequestedByName, _appSettings.URLSITE);
+                            model.RequestedByName,
+                            session.DepName,
+                            _appSettings.URLSITE);
 
                 return Json(new
                 {
@@ -201,12 +203,13 @@ namespace BTQCDar.Controllers
 
             UpdateReviewed(id, session.SamAcc, session.FullName, DateTime.Now, remarks);
 
-            // Notify Approver
+            // Step 2: Notify Approver after review
             if (!string.IsNullOrEmpty(dar.ApproverEmail))
                 _ = _mailer.NotifyApproverAsync(
                         dar.ApproverEmail,
                         dar.DarNo, dar.DocumentName,
-                        session.FullName, _appSettings.URLSITE);
+                        session.FullName,           // reviewerName
+                        _appSettings.URLSITE);
 
             return Json(new { success = true, message = "Reviewed — forwarded to Approver." });
         }
@@ -238,12 +241,13 @@ namespace BTQCDar.Controllers
                          approvedDate: DateTime.Now,
                          remarks: remarks);
 
-            // Notify Requester — completed
+            // Step 3a: Notify Requester — DAR completed
             var requesterEmail = GetRequesterEmail(dar.RequestedBySamAcc);
             if (!string.IsNullOrEmpty(requesterEmail))
                 _ = _mailer.NotifyCompletedAsync(
                         requesterEmail,
                         dar.DarNo, dar.DocumentName,
+                        session.FullName,           // approverName
                         _appSettings.URLSITE);
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} approved and completed." });
@@ -275,7 +279,9 @@ namespace BTQCDar.Controllers
                     _ = _mailer.NotifyRejectedAsync(
                             GetRequesterEmail(darMR.RequestedBySamAcc),
                             darMR.DarNo, darMR.DocumentName,
-                            remarks ?? "", _appSettings.URLSITE);
+                            session.FullName,       // rejectedByName
+                            remarks ?? "",
+                            _appSettings.URLSITE);
             }
 
             var msg = agree ? "MR Agreed — forwarded to DCO." : "MR did not agree.";
@@ -300,6 +306,7 @@ namespace BTQCDar.Controllers
                 _ = _mailer.NotifyCompletedAsync(
                         GetRequesterEmail(darDCO.RequestedBySamAcc),
                         darDCO.DarNo, darDCO.DocumentName,
+                        session.FullName,           // dcoName as approverName
                         _appSettings.URLSITE);
 
             return Json(new { success = true, message = "Document registered — DAR completed." });
@@ -332,7 +339,9 @@ namespace BTQCDar.Controllers
                 _ = _mailer.NotifyRejectedAsync(
                         requesterEmail,
                         dar.DarNo, dar.DocumentName,
-                        remarks ?? "", _appSettings.URLSITE);
+                        session.FullName,           // rejectedByName
+                        remarks ?? "",
+                        _appSettings.URLSITE);
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} has been rejected." });
         }
