@@ -2,19 +2,19 @@ namespace BTQCDar.Controllers
 {
     public class DarController : BaseController
     {
-        private readonly IDbService          _db;
+        private readonly IDbService _db;
         private readonly IWebHostEnvironment _env;
-        private readonly SendMailController  _mailer;
-        private readonly AppSettingsModel    _appSettings;
+        private readonly SendMailController _mailer;
+        private readonly AppSettingsModel _appSettings;
 
         public DarController(IDbService db,
                              IWebHostEnvironment env,
                              SendMailController mailer,
                              IOptions<AppSettingsModel> settings)
         {
-            _db          = db;
-            _env         = env;
-            _mailer      = mailer;
+            _db = db;
+            _env = env;
+            _mailer = mailer;
             _appSettings = settings.Value;
         }
 
@@ -42,8 +42,8 @@ namespace BTQCDar.Controllers
             var model = new DarMasterModel
             {
                 RequestedBySamAcc = session.SamAcc,
-                RequestedByName   = session.FullName,
-                RequestedDate     = DateTime.Now,
+                RequestedByName = session.FullName,
+                RequestedDate = DateTime.Now,
             };
 
             ViewBag.Session = session;
@@ -58,42 +58,55 @@ namespace BTQCDar.Controllers
         public async Task<IActionResult> Create(DarMasterModel model, IFormFile? attachmentFile)
         {
             var redirect = RequireLogin(out var session);
-            if (redirect != null) return redirect;
+            if (redirect != null)
+                return Json(new { success = false, message = "Session expired. Please login again." });
 
             if (!ModelState.IsValid)
             {
-                ViewBag.Session = session;
-                return View(model);
+                var errors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .ToList();
+                return Json(new { success = false, message = string.Join(", ", errors) });
             }
 
-            model.RequestedBySamAcc = session.SamAcc;
-            model.RequestedByName   = session.FullName;
-            model.RequestedDate     = DateTime.Now;
-            model.Status            = DarStatus.PendingApproval;
-            model.DarNo             = GenerateDarNo();
-
-            // Handle file upload
-            if (attachmentFile != null && attachmentFile.Length > 0)
+            try
             {
-                model.HasAttachment      = true;
-                model.AttachmentFileName = await SaveAttachment(attachmentFile, model.DarNo);
+                model.RequestedBySamAcc = session.SamAcc;
+                model.RequestedByName = session.FullName;
+                model.RequestedDate = DateTime.Now;
+                model.Status = DarStatus.PendingApproval;
+                model.DarNo = GenerateDarNo();
+
+                // Handle file upload
+                if (attachmentFile != null && attachmentFile.Length > 0)
+                {
+                    model.HasAttachment = true;
+                    model.AttachmentFileName = await SaveAttachment(attachmentFile, model.DarNo);
+                }
+
+                int newId = InsertDar(model);
+
+                // Notify Reviewer — fire-and-forget
+                if (!string.IsNullOrEmpty(model.ReviewerEmail))
+                    _ = _mailer.NotifyApproverAsync(
+                            model.ReviewerEmail,
+                            model.DarNo, model.DocumentName,
+                            model.RequestedByName, _appSettings.URLSITE);
+
+                return Json(new
+                {
+                    success = true,
+                    darNo = model.DarNo,
+                    darId = newId,
+                    redirect = Url.Action("Detail", "Dar", new { id = newId })
+                });
             }
-
-            int newId = InsertDar(model);
-
-            // Save selected approvers
-            var approverKeys = Request.Form["selectedApprovers"]
-                                      .Where(x => !string.IsNullOrEmpty(x))
-                                      .ToList();
-            if (approverKeys.Any())
-                SaveApprovers(newId, approverKeys!);
-
-            TempData["Success"] = $"DAR created successfully: {model.DarNo}";
-
-            // Notify Approvers — fire-and-forget (non-fatal)
-            _ = NotifyApproversAsync(model.DarNo, model.DocumentName, model.RequestedByName);
-
-            return RedirectToAction("Detail", new { id = newId });
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[Create DAR] {ex.Message}");
+                return Json(new { success = false, message = "An error occurred. Please try again." });
+            }
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -307,10 +320,10 @@ namespace BTQCDar.Controllers
                 {
                     list.Add(new DarApproverOptionModel
                     {
-                        SamAcc   = rdr["SamAcc"].ToString()!,
+                        SamAcc = rdr["SamAcc"].ToString()!,
                         FullName = rdr["FullName"].ToString()!,
-                        DepCode  = rdr["DepCode"].ToString()!,
-                        Depart   = rdr["Depart"].ToString()!,
+                        DepCode = rdr["DepCode"].ToString()!,
+                        Depart = rdr["Depart"].ToString()!,
                         RoleType = (int)rdr["RoleType"],
                         RoleName = rdr["RoleName"].ToString()!,
                     });
@@ -352,14 +365,14 @@ namespace BTQCDar.Controllers
                 {
                     list.Add(new DarApproverModel
                     {
-                        Id        = (int)rdr["Id"],
-                        DarId     = (int)rdr["DarId"],
-                        SamAcc    = rdr["SamAcc"].ToString()!,
-                        FullName  = rdr["FullName"].ToString()!,
-                        DepCode   = rdr["DepCode"].ToString()!,
-                        Depart    = rdr["Depart"].ToString()!,
-                        RoleType  = (int)rdr["RoleType"],
-                        RoleName  = rdr["RoleName"].ToString()!,
+                        Id = (int)rdr["Id"],
+                        DarId = (int)rdr["DarId"],
+                        SamAcc = rdr["SamAcc"].ToString()!,
+                        FullName = rdr["FullName"].ToString()!,
+                        DepCode = rdr["DepCode"].ToString()!,
+                        Depart = rdr["Depart"].ToString()!,
+                        RoleType = (int)rdr["RoleType"],
+                        RoleName = rdr["RoleName"].ToString()!,
                         SortOrder = (int)rdr["SortOrder"],
                     });
                 }
@@ -385,7 +398,7 @@ namespace BTQCDar.Controllers
                 conn.Open();
                 using var cmd = new SqlCommand("dbo.usp_GetReviewersByDocType", conn)
                 {
-                    CommandType    = System.Data.CommandType.StoredProcedure,
+                    CommandType = System.Data.CommandType.StoredProcedure,
                     CommandTimeout = 10
                 };
                 cmd.Parameters.AddWithValue("@DocType", docType);
@@ -417,7 +430,7 @@ namespace BTQCDar.Controllers
                 conn.Open();
                 using var cmd = new SqlCommand("dbo.usp_GetApproverByDocType", conn)
                 {
-                    CommandType    = System.Data.CommandType.StoredProcedure,
+                    CommandType = System.Data.CommandType.StoredProcedure,
                     CommandTimeout = 10
                 };
                 cmd.Parameters.AddWithValue("@DocType", docType);
@@ -448,11 +461,11 @@ namespace BTQCDar.Controllers
                 conn.Open();
                 using var cmd = new SqlCommand("dbo.usp_CheckCreatorPermission", conn)
                 {
-                    CommandType    = System.Data.CommandType.StoredProcedure,
+                    CommandType = System.Data.CommandType.StoredProcedure,
                     CommandTimeout = 10
                 };
                 cmd.Parameters.AddWithValue("@DocType", docType);
-                cmd.Parameters.AddWithValue("@SamAcc",  session.SamAcc);
+                cmd.Parameters.AddWithValue("@SamAcc", session.SamAcc);
                 var result = cmd.ExecuteScalar();
                 return Json(new { isAllowed = (result != null && (bool)result) });
             }
@@ -499,10 +512,10 @@ namespace BTQCDar.Controllers
                 if (rdr.Read())
                     return Json(new
                     {
-                        draft     = rdr["draft"],
-                        pending   = rdr["pending"],
+                        draft = rdr["draft"],
+                        pending = rdr["pending"],
                         completed = rdr["completed"],
-                        rejected  = rdr["rejected"]
+                        rejected = rdr["rejected"]
                     });
             }
             catch { /* Return zeros on error */ }
@@ -596,7 +609,7 @@ namespace BTQCDar.Controllers
             Directory.CreateDirectory(uploadDir); // ensure folder exists
 
             // Sanitize: keep original extension, prefix with DarNo + timestamp
-            var ext      = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
             var safeName = $"{darNo}_{DateTime.Now:yyyyMMddHHmmss}{ext}";
             var fullPath = Path.Combine(uploadDir, safeName);
 
@@ -626,8 +639,8 @@ namespace BTQCDar.Controllers
             {
                 var parts = key.Split('|');
                 if (parts.Length < 3) continue;
-                var samAcc   = parts[0].Trim();
-                var depCode  = parts[1].Trim();
+                var samAcc = parts[0].Trim();
+                var depCode = parts[1].Trim();
                 if (!int.TryParse(parts[2].Trim(), out int roleType)) continue;
 
                 // Look up display info
@@ -638,12 +651,12 @@ namespace BTQCDar.Controllers
                     WHERE SamAcc=@sam AND DepCode=@dep AND RoleType=@rt", conn);
                 look.Parameters.AddWithValue("@sam", samAcc);
                 look.Parameters.AddWithValue("@dep", depCode);
-                look.Parameters.AddWithValue("@rt",  roleType);
+                look.Parameters.AddWithValue("@rt", roleType);
                 using var lr = look.ExecuteReader();
                 if (lr.Read())
                 {
                     fullName = lr["FullName"].ToString()!;
-                    depart   = lr["Depart"].ToString()!;
+                    depart = lr["Depart"].ToString()!;
                 }
                 lr.Close();
 
@@ -651,13 +664,13 @@ namespace BTQCDar.Controllers
                     INSERT INTO [dbo].[dar_DarApprovers]
                         (DarId, SamAcc, FullName, DepCode, Depart, RoleType, SortOrder)
                     VALUES (@darId, @sam, @name, @dep, @depart, @rt, @ord)", conn);
-                ins.Parameters.AddWithValue("@darId",  darId);
-                ins.Parameters.AddWithValue("@sam",    samAcc);
-                ins.Parameters.AddWithValue("@name",   fullName);
-                ins.Parameters.AddWithValue("@dep",    depCode);
+                ins.Parameters.AddWithValue("@darId", darId);
+                ins.Parameters.AddWithValue("@sam", samAcc);
+                ins.Parameters.AddWithValue("@name", fullName);
+                ins.Parameters.AddWithValue("@dep", depCode);
                 ins.Parameters.AddWithValue("@depart", depart);
-                ins.Parameters.AddWithValue("@rt",     roleType);
-                ins.Parameters.AddWithValue("@ord",    order++);
+                ins.Parameters.AddWithValue("@rt", roleType);
+                ins.Parameters.AddWithValue("@ord", order++);
                 ins.ExecuteNonQuery();
             }
         }
@@ -753,12 +766,12 @@ namespace BTQCDar.Controllers
                     UpdatedAt=GETDATE()
                 WHERE DarId=@DarId";
             using var cmd = new SqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@DarId",        darId);
-            cmd.Parameters.AddWithValue("@Status",       (int)status);
-            cmd.Parameters.AddWithValue("@ApprovedBySam",  (object?)approvedBySam  ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@DarId", darId);
+            cmd.Parameters.AddWithValue("@Status", (int)status);
+            cmd.Parameters.AddWithValue("@ApprovedBySam", (object?)approvedBySam ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ApprovedByName", (object?)approvedByName ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@ApprovedDate",   (object?)approvedDate   ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@Remarks",        (object?)remarks        ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ApprovedDate", (object?)approvedDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Remarks", (object?)remarks ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
 
@@ -774,12 +787,12 @@ namespace BTQCDar.Controllers
                     UpdatedAt=GETDATE()
                 WHERE DarId=@DarId";
             using var cmd = new SqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@DarId",    darId);
-            cmd.Parameters.AddWithValue("@MRAgree",  agree);
+            cmd.Parameters.AddWithValue("@DarId", darId);
+            cmd.Parameters.AddWithValue("@MRAgree", agree);
             cmd.Parameters.AddWithValue("@MRSamAcc", mrSam);
-            cmd.Parameters.AddWithValue("@MRDate",   mrDate);
-            cmd.Parameters.AddWithValue("@Status",   (int)nextStatus);
-            cmd.Parameters.AddWithValue("@Remarks",  (object?)remarks ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@MRDate", mrDate);
+            cmd.Parameters.AddWithValue("@Status", (int)nextStatus);
+            cmd.Parameters.AddWithValue("@Remarks", (object?)remarks ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
 
@@ -795,11 +808,11 @@ namespace BTQCDar.Controllers
                     UpdatedAt=GETDATE()
                 WHERE DarId=@DarId";
             using var cmd = new SqlCommand(sql, conn);
-            cmd.Parameters.AddWithValue("@DarId",    darId);
+            cmd.Parameters.AddWithValue("@DarId", darId);
             cmd.Parameters.AddWithValue("@DCOSamAcc", dcoSam);
-            cmd.Parameters.AddWithValue("@RegDate",  regDate);
-            cmd.Parameters.AddWithValue("@Status",   (int)nextStatus);
-            cmd.Parameters.AddWithValue("@Remarks",  (object?)remarks ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@RegDate", regDate);
+            cmd.Parameters.AddWithValue("@Status", (int)nextStatus);
+            cmd.Parameters.AddWithValue("@Remarks", (object?)remarks ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
 
@@ -835,14 +848,14 @@ namespace BTQCDar.Controllers
             {
                 list.Add(new DarListItemModel
                 {
-                    DarId         = (int)rdr["DarId"],
-                    DarNo         = rdr["DarNo"].ToString()!,
-                    DocumentNo    = rdr["DocumentNo"].ToString()!,
-                    DocumentName  = rdr["DocumentName"].ToString()!,
-                    Purpose       = ((DarPurpose)(int)rdr["Purpose"]).ToString(),
-                    RequestedBy   = rdr["RequestedByName"].ToString()!,
+                    DarId = (int)rdr["DarId"],
+                    DarNo = rdr["DarNo"].ToString()!,
+                    DocumentNo = rdr["DocumentNo"].ToString()!,
+                    DocumentName = rdr["DocumentName"].ToString()!,
+                    Purpose = ((DarPurpose)(int)rdr["Purpose"]).ToString(),
+                    RequestedBy = rdr["RequestedByName"].ToString()!,
                     RequestedDate = (DateTime)rdr["RequestedDate"],
-                    Status        = (DarStatus)(int)rdr["Status"],
+                    Status = (DarStatus)(int)rdr["Status"],
                 });
             }
             return list;
@@ -855,7 +868,7 @@ namespace BTQCDar.Controllers
             conn.Open();
 
             // Filter pending items based on user's role
-            var statusFilter = session.IsMR  ? (int)DarStatus.PendingMR
+            var statusFilter = session.IsMR ? (int)DarStatus.PendingMR
                              : session.IsDCO ? (int)DarStatus.PendingDCO
                              : (int)DarStatus.PendingApproval;
 
@@ -878,14 +891,14 @@ namespace BTQCDar.Controllers
             {
                 list.Add(new DarListItemModel
                 {
-                    DarId         = (int)rdr["DarId"],
-                    DarNo         = rdr["DarNo"].ToString()!,
-                    DocumentNo    = rdr["DocumentNo"].ToString()!,
-                    DocumentName  = rdr["DocumentName"].ToString()!,
-                    Purpose       = ((DarPurpose)(int)rdr["Purpose"]).ToString(),
-                    RequestedBy   = rdr["RequestedByName"].ToString()!,
+                    DarId = (int)rdr["DarId"],
+                    DarNo = rdr["DarNo"].ToString()!,
+                    DocumentNo = rdr["DocumentNo"].ToString()!,
+                    DocumentName = rdr["DocumentName"].ToString()!,
+                    Purpose = ((DarPurpose)(int)rdr["Purpose"]).ToString(),
+                    RequestedBy = rdr["RequestedByName"].ToString()!,
                     RequestedDate = (DateTime)rdr["RequestedDate"],
-                    Status        = (DarStatus)(int)rdr["Status"],
+                    Status = (DarStatus)(int)rdr["Status"],
                 });
             }
             return list;
@@ -896,89 +909,96 @@ namespace BTQCDar.Controllers
         {
             return new UserDropdownModel
             {
-                SamAcc     = r["SamAcc"].ToString()     ?? string.Empty,
-                FullName   = r["FullName"].ToString()   ?? string.Empty,
-                Email      = r["Email"].ToString()      ?? string.Empty,
-                DepCode    = r["DepCode"].ToString()    ?? string.Empty,
+                SamAcc = r["SamAcc"].ToString() ?? string.Empty,
+                FullName = r["FullName"].ToString() ?? string.Empty,
+                Email = r["Email"].ToString() ?? string.Empty,
+                DepCode = r["DepCode"].ToString() ?? string.Empty,
                 Department = r["Department"].ToString() ?? string.Empty,
-                RoleType   = r["RoleType"] != DBNull.Value ? (int)r["RoleType"] : 0,
-                RoleName   = r["RoleName"].ToString()   ?? string.Empty,
+                RoleType = r["RoleType"] != DBNull.Value ? (int)r["RoleType"] : 0,
+                RoleName = r["RoleName"].ToString() ?? string.Empty,
             };
         }
         private static DarMasterModel MapDar(SqlDataReader r)
         {
             return new DarMasterModel
             {
-                DarId                 = (int)r["DarId"],
-                DarNo                 = r["DarNo"].ToString()!,
-                DocType               = (DarDocType)(int)r["DocType"],
-                DocTypeOther          = r["DocTypeOther"].ToString()!,
-                ForStandard           = (DarForStandard)(int)r["ForStandard"],
-                ForStandardOther      = r["ForStandardOther"].ToString()!,
-                DocumentNo            = r["DocumentNo"].ToString()!,
-                DocumentName          = r["DocumentName"].ToString()!,
-                Purpose               = (DarPurpose)(int)r["Purpose"],
-                PurposeOther          = r["PurposeOther"].ToString()!,
-                Content               = r["Content"].ToString()!,
-                HasAttachment         = (bool)r["HasAttachment"],
+                DarId = (int)r["DarId"],
+                DarNo = r["DarNo"].ToString()!,
+                DocType = (DarDocType)(int)r["DocType"],
+                DocTypeOther = r["DocTypeOther"].ToString()!,
+                ForStandard = (DarForStandard)(int)r["ForStandard"],
+                ForStandardOther = r["ForStandardOther"].ToString()!,
+                DocumentNo = r["DocumentNo"].ToString()!,
+                DocumentName = r["DocumentName"].ToString()!,
+                Purpose = (DarPurpose)(int)r["Purpose"],
+                PurposeOther = r["PurposeOther"].ToString()!,
+                Content = r["Content"].ToString()!,
+                HasAttachment = (bool)r["HasAttachment"],
                 DocStatusUnderRequest = r["DocStatusUnderRequest"].ToString()!,
-                ReasonBehindPurpose   = r["ReasonBehindPurpose"].ToString()!,
-                EffectiveDate         = r["EffectiveDate"] as DateTime?,
-                RevisionNo            = r["RevisionNo"].ToString()!,
-                IsControlledCopy      = (bool)r["IsControlledCopy"],
-                IsUncontrolledCopy    = (bool)r["IsUncontrolledCopy"],
-                DistributionList      = r["DistributionList"].ToString()!,
-                RequestedBySamAcc     = r["RequestedBySamAcc"].ToString()!,
-                RequestedByName       = r["RequestedByName"].ToString()!,
-                RequestedDate         = (DateTime)r["RequestedDate"],
-                ApprovedBySamAcc      = r["ApprovedBySamAcc"] as string,
-                ApprovedByName        = r["ApprovedByName"] as string,
-                ApprovedDate          = r["ApprovedDate"] as DateTime?,
-                MRAgree               = r["MRAgree"] as bool?,
-                MRSamAcc              = r["MRSamAcc"] as string,
-                MRDate                = r["MRDate"] as DateTime?,
-                DCOSamAcc             = r["DCOSamAcc"] as string,
-                DocRegisteredDate     = r["DocRegisteredDate"] as DateTime?,
-                Status                = (DarStatus)(int)r["Status"],
-                Remarks               = r["Remarks"].ToString()!,
-                CreatedAt             = (DateTime)r["CreatedAt"],
-                AttachmentFileName    = r["AttachmentFileName"].ToString()!,
-                UpdatedAt             = (DateTime)r["UpdatedAt"],
+                ReasonBehindPurpose = r["ReasonBehindPurpose"].ToString()!,
+                EffectiveDate = r["EffectiveDate"] as DateTime?,
+                RevisionNo = r["RevisionNo"].ToString()!,
+                IsControlledCopy = (bool)r["IsControlledCopy"],
+                IsUncontrolledCopy = (bool)r["IsUncontrolledCopy"],
+                DistributionList = r["DistributionList"].ToString()!,
+                RequestedBySamAcc = r["RequestedBySamAcc"].ToString()!,
+                RequestedByName = r["RequestedByName"].ToString()!,
+                RequestedDate = (DateTime)r["RequestedDate"],
+                ApprovedBySamAcc = r["ApprovedBySamAcc"] as string,
+                ApprovedByName = r["ApprovedByName"] as string,
+                ApprovedDate = r["ApprovedDate"] as DateTime?,
+                MRAgree = r["MRAgree"] as bool?,
+                MRSamAcc = r["MRSamAcc"] as string,
+                MRDate = r["MRDate"] as DateTime?,
+                DCOSamAcc = r["DCOSamAcc"] as string,
+                DocRegisteredDate = r["DocRegisteredDate"] as DateTime?,
+                Status = (DarStatus)(int)r["Status"],
+                Remarks = r["Remarks"].ToString()!,
+                CreatedAt = (DateTime)r["CreatedAt"],
+                AttachmentFileName = r["AttachmentFileName"].ToString()!,
+                ReviewerSamAcc = r["ReviewerSamAcc"].ToString()!,
+                ReviewerName = r["ReviewerName"].ToString()!,
+                ReviewerEmail = r["ReviewerEmail"].ToString()!,
+                ReviewedDate = r["ReviewedDate"] as DateTime?,
+                ApproverSamAcc = r["ApproverSamAcc"].ToString()!,
+                ApproverName = r["ApproverName"].ToString()!,
+                ApproverEmail = r["ApproverEmail"].ToString()!,
+                UpdatedAt = (DateTime)r["UpdatedAt"],
             };
         }
 
         private static void BindDarParams(SqlCommand cmd, DarMasterModel m)
         {
-            cmd.Parameters.AddWithValue("@DarNo",                 m.DarNo);
-            cmd.Parameters.AddWithValue("@DocType",               (int)m.DocType);
-            cmd.Parameters.AddWithValue("@DocTypeOther",          m.DocTypeOther);
-            cmd.Parameters.AddWithValue("@ForStandard",           (int)m.ForStandard);
-            cmd.Parameters.AddWithValue("@ForStandardOther",      m.ForStandardOther);
-            cmd.Parameters.AddWithValue("@DocumentNo",            m.DocumentNo);
-            cmd.Parameters.AddWithValue("@DocumentName",          m.DocumentName);
-            cmd.Parameters.AddWithValue("@Purpose",               (int)m.Purpose);
-            cmd.Parameters.AddWithValue("@PurposeOther",          m.PurposeOther);
-            cmd.Parameters.AddWithValue("@Content",               m.Content);
-            cmd.Parameters.AddWithValue("@HasAttachment",         m.HasAttachment);
-            cmd.Parameters.AddWithValue("@AttachmentFileName",      m.AttachmentFileName);
-            cmd.Parameters.AddWithValue("@ReviewerSamAcc",          m.ReviewerSamAcc);
-            cmd.Parameters.AddWithValue("@ReviewerName",             m.ReviewerName);
-            cmd.Parameters.AddWithValue("@ReviewerEmail",            m.ReviewerEmail);
-            cmd.Parameters.AddWithValue("@ApproverSamAcc",          m.ApproverSamAcc);
-            cmd.Parameters.AddWithValue("@ApproverName",             m.ApproverName);
-            cmd.Parameters.AddWithValue("@ApproverEmail",            m.ApproverEmail);
+            cmd.Parameters.AddWithValue("@DarNo", m.DarNo);
+            cmd.Parameters.AddWithValue("@DocType", (int)m.DocType);
+            cmd.Parameters.AddWithValue("@DocTypeOther", m.DocTypeOther);
+            cmd.Parameters.AddWithValue("@ForStandard", (int)m.ForStandard);
+            cmd.Parameters.AddWithValue("@ForStandardOther", m.ForStandardOther);
+            cmd.Parameters.AddWithValue("@DocumentNo", m.DocumentNo);
+            cmd.Parameters.AddWithValue("@DocumentName", m.DocumentName);
+            cmd.Parameters.AddWithValue("@Purpose", (int)m.Purpose);
+            cmd.Parameters.AddWithValue("@PurposeOther", m.PurposeOther);
+            cmd.Parameters.AddWithValue("@Content", m.Content);
+            cmd.Parameters.AddWithValue("@HasAttachment", m.HasAttachment);
+            cmd.Parameters.AddWithValue("@AttachmentFileName", m.AttachmentFileName);
             cmd.Parameters.AddWithValue("@DocStatusUnderRequest", m.DocStatusUnderRequest);
-            cmd.Parameters.AddWithValue("@ReasonBehindPurpose",   m.ReasonBehindPurpose);
-            cmd.Parameters.AddWithValue("@EffectiveDate",   (object?)m.EffectiveDate ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("@RevisionNo",            m.RevisionNo);
-            cmd.Parameters.AddWithValue("@IsControlledCopy",      m.IsControlledCopy);
-            cmd.Parameters.AddWithValue("@IsUncontrolledCopy",    m.IsUncontrolledCopy);
-            cmd.Parameters.AddWithValue("@DistributionList",      m.DistributionList);
-            cmd.Parameters.AddWithValue("@RequestedBySamAcc",     m.RequestedBySamAcc);
-            cmd.Parameters.AddWithValue("@RequestedByName",       m.RequestedByName);
-            cmd.Parameters.AddWithValue("@RequestedDate",         m.RequestedDate);
-            cmd.Parameters.AddWithValue("@Status",                (int)m.Status);
-            cmd.Parameters.AddWithValue("@Remarks",               m.Remarks);
+            cmd.Parameters.AddWithValue("@ReviewerSamAcc", m.ReviewerSamAcc);
+            cmd.Parameters.AddWithValue("@ReviewerName", m.ReviewerName);
+            cmd.Parameters.AddWithValue("@ReviewerEmail", m.ReviewerEmail);
+            cmd.Parameters.AddWithValue("@ApproverSamAcc", m.ApproverSamAcc);
+            cmd.Parameters.AddWithValue("@ApproverName", m.ApproverName);
+            cmd.Parameters.AddWithValue("@ApproverEmail", m.ApproverEmail);
+            cmd.Parameters.AddWithValue("@ReasonBehindPurpose", m.ReasonBehindPurpose);
+            cmd.Parameters.AddWithValue("@EffectiveDate", (object?)m.EffectiveDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@RevisionNo", m.RevisionNo);
+            cmd.Parameters.AddWithValue("@IsControlledCopy", m.IsControlledCopy);
+            cmd.Parameters.AddWithValue("@IsUncontrolledCopy", m.IsUncontrolledCopy);
+            cmd.Parameters.AddWithValue("@DistributionList", m.DistributionList);
+            cmd.Parameters.AddWithValue("@RequestedBySamAcc", m.RequestedBySamAcc);
+            cmd.Parameters.AddWithValue("@RequestedByName", m.RequestedByName);
+            cmd.Parameters.AddWithValue("@RequestedDate", m.RequestedDate);
+            cmd.Parameters.AddWithValue("@Status", (int)m.Status);
+            cmd.Parameters.AddWithValue("@Remarks", m.Remarks);
         }
     }
 }

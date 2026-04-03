@@ -9,7 +9,7 @@
                 <div class="text-danger" style="font-size:3rem;"><i class="bi bi-file-earmark-check-fill"></i></div>
                 <div>
                     <h4 class="mb-0">สวัสดี, @Model.FullName</h4>
-                    <small class="text-muted">@Model.SamAcc &nbsp;|&nbsp; @Model.Dept</small>
+                    <small class="text-muted">@Model.SamAcc &nbsp;|&nbsp; @Model.DepName</small>
                     @if (!string.IsNullOrEmpty(Model.ManagerName))
                     {
                         <div class="small text-muted">ผู้บังคับบัญชา: @Model.ManagerName</div>

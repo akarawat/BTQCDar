@@ -24,6 +24,7 @@ namespace BTQCDar.Controllers
             if (existing != null && !string.IsNullOrEmpty(existing.SamAcc))
                 return View(existing);
 
+            /*
             // 2. SSO callback — params present in query string
             if (!string.IsNullOrEmpty(user))
             {
@@ -43,7 +44,33 @@ namespace BTQCDar.Controllers
                 SaveSession(session);
                 return View(session);
             }
+            */
+            
+            // 2. SSO for Debug
+            user = "BERNINATHAILAND\\julaluck.p";
+            id = "123456789";
+            email = "julaluck.p@berninathailand.com";
+            fname = "julaluck panyama";
+            depart = "Test Department";
+            if (user != "")
+            {
+                string[] userDomain = user.Split('\\');
 
+                var session = new UserSessionModel
+                {
+                    UserId = id ?? string.Empty,
+                    SamAcc = userDomain[1] ?? string.Empty,
+                    Email = email ?? string.Empty,
+                    FullName = fname ?? string.Empty,
+                    //Dept = depart ?? string.Empty,
+                };
+
+                LoadHrInfo(session);
+                LoadUserRoles(session);
+                SaveSession(session);
+                return View(session);
+            }
+            
             // 3. No session → redirect to BT SSO
             // BT SSO appends params with "&", so returnUrl must already contain "?"
             //var returnUrl = AuthenUrl;
@@ -107,10 +134,7 @@ namespace BTQCDar.Controllers
 
                     // DepCode (numeric code e.g. "450")
                     session.DepCode = rdr["Dep_code"]?.ToString() ?? string.Empty;
-
-                    // Dept (display name) — prefer SSO ?depart=, fallback to HR DEPART
-                    if (string.IsNullOrEmpty(session.Dept))
-                        session.Dept = rdr["Department"]?.ToString() ?? string.Empty;
+                    session.DepName = rdr["Department"]?.ToString() ?? string.Empty;
 
                     // Manager info (via FUNC_GetInfoByFullName)
                     session.ManagerSamAcc = rdr["ManagerSamAcc"]?.ToString() ?? string.Empty;
