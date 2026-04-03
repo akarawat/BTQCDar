@@ -61,14 +61,25 @@ namespace BTQCDar.Controllers
             if (redirect != null)
                 return Json(new { success = false, message = "Session expired. Please login again." });
 
-            if (!ModelState.IsValid)
-            {
-                var errors = ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage)
-                    .ToList();
-                return Json(new { success = false, message = string.Join(", ", errors) });
-            }
+            // Skip ModelState — we do manual validation below.
+            // ASP.NET 8 nullable context marks every non-nullable string as [Required]
+            // which causes false failures for optional fields (RevisionNo, DistributionList, etc.)
+            ModelState.Clear();
+
+            // Manual required-field check
+            var errors = new List<string>();
+            if (model.DocType == 0) errors.Add("Please select a document type.");
+            if (model.ForStandard == 0) errors.Add("Please select a standard (For).");
+            if (model.Purpose == 0) errors.Add("Please select a purpose.");
+            if (string.IsNullOrWhiteSpace(model.DocumentName))
+                errors.Add("Document Name is required.");
+            if (string.IsNullOrWhiteSpace(model.Content))
+                errors.Add("Content is required.");
+            if (string.IsNullOrWhiteSpace(model.ReviewerSamAcc))
+                errors.Add("Please select a Reviewer.");
+
+            if (errors.Any())
+                return Json(new { success = false, message = string.Join(" | ", errors) });
 
             try
             {

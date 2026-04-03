@@ -36,26 +36,36 @@
                         <label class="form-check-label" for="dt1">Policy / Objective / Manual</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="2" id="dt2">
-                        <label class="form-check-label" for="dt2">Standard Procedure</label>
-                    </div>
-                    <div class="form-check">
                         <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="3" id="dt3">
                         <label class="form-check-label" for="dt3">Work Instruction</label>
                     </div>
-                </div>
-                <div class="col-md-6">
                     <div class="form-check">
                         <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="4" id="dt4">
                         <label class="form-check-label" for="dt4">Supporting Document</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="6" id="dt6">
+                        <label class="form-check-label" for="dt6">Document from External Origin / Drawing / Other</label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+
+                    <div class="form-check">
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="2" id="dt2">
+                        <label class="form-check-label" for="dt2">Standard Procedure</label>
                     </div>
                     <div class="form-check">
                         <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="5" id="dt5">
                         <label class="form-check-label" for="dt5">Form and Format</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="6" id="dt6">
-                        <label class="form-check-label" for="dt6">Document from External Origin / Drawing / Other</label>
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="7" id="dt7">
+                        <label class="form-check-label" for="dt7">Drawing</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input doc-type-radio" type="radio" asp-for="DocType" value="8" id="dt8">
+                        <label class="form-check-label" for="dt8">Other (Specify)</label>
+                        <input type="text" class="form-control form-control-sm" />
                     </div>
                 </div>
                 <div id="dtInvalidMsg" class="col-12 text-danger small" style="display:none">
