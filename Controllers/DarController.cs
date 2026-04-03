@@ -179,32 +179,74 @@ namespace BTQCDar.Controllers
         }
 
         // ────────────────────────────────────────────────────────────────────
-        // POST /Dar/Approve  — Approver approves
+        // POST /Dar/Review  — Reviewer reviews → forward to Approver
+        // ────────────────────────────────────────────────────────────────────
+        [HttpPost]
+        public IActionResult Review(int id, string? remarks)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+
+            // Only the assigned Reviewer (or Admin) can review
+            bool isReviewer = string.Equals(session.SamAcc, dar.ReviewerSamAcc,
+                                            StringComparison.OrdinalIgnoreCase);
+            if (!isReviewer && !session.IsAdmin)
+                return Json(new { success = false, message = "You are not the assigned Reviewer." });
+
+            if (dar.Status != DarStatus.PendingApproval)
+                return Json(new { success = false, message = "DAR is not in Pending Review status." });
+
+            UpdateReviewed(id, session.SamAcc, session.FullName, DateTime.Now, remarks);
+
+            // Notify Approver
+            if (!string.IsNullOrEmpty(dar.ApproverEmail))
+                _ = _mailer.NotifyApproverAsync(
+                        dar.ApproverEmail,
+                        dar.DarNo, dar.DocumentName,
+                        session.FullName, _appSettings.URLSITE);
+
+            return Json(new { success = true, message = "Reviewed — forwarded to Approver." });
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // POST /Dar/Approve  — Approver approves → Completed
         // ────────────────────────────────────────────────────────────────────
         [HttpPost]
         public IActionResult Approve(int id, string? remarks)
         {
             var redirect = RequireLogin(out var session);
-            if (redirect != null) return redirect;
-            if (!session.IsDarApprover && !session.IsAdmin)
-                return Forbid();
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
 
-            UpdateStatus(id, DarStatus.PendingMR,
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+
+            // Only the assigned Approver (or Admin) can approve
+            bool isApprover = string.Equals(session.SamAcc, dar.ApproverSamAcc,
+                                            StringComparison.OrdinalIgnoreCase);
+            if (!isApprover && !session.IsAdmin)
+                return Json(new { success = false, message = "You are not the assigned Approver." });
+
+            if (dar.Status != DarStatus.PendingMR)
+                return Json(new { success = false, message = "DAR is not in Pending Approval status." });
+
+            UpdateStatus(id, DarStatus.Completed,
                          approvedBySam: session.SamAcc,
                          approvedByName: session.FullName,
                          approvedDate: DateTime.Now,
                          remarks: remarks);
 
-            TempData["Success"] = "Approved — forwarded to MR.";
-
-            var dar = GetDarById(id);
-            if (dar != null)
-                _ = _mailer.NotifyMRAsync(
-                        GetMREmail(),
+            // Notify Requester — completed
+            var requesterEmail = GetRequesterEmail(dar.RequestedBySamAcc);
+            if (!string.IsNullOrEmpty(requesterEmail))
+                _ = _mailer.NotifyCompletedAsync(
+                        requesterEmail,
                         dar.DarNo, dar.DocumentName,
-                        session.FullName, _appSettings.URLSITE);
+                        _appSettings.URLSITE);
 
-            return RedirectToAction("Detail", new { id });
+            return Json(new { success = true, message = $"DAR {dar.DarNo} approved and completed." });
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -214,13 +256,12 @@ namespace BTQCDar.Controllers
         public IActionResult MRAgree(int id, bool agree, string? remarks)
         {
             var redirect = RequireLogin(out var session);
-            if (redirect != null) return redirect;
-            if (!session.IsMR && !session.IsAdmin) return Forbid();
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+            if (!session.IsMR && !session.IsAdmin)
+                return Json(new { success = false, message = "Access denied." });
 
             var nextStatus = agree ? DarStatus.PendingDCO : DarStatus.Rejected;
             UpdateMR(id, agree, session.SamAcc, DateTime.Now, nextStatus, remarks);
-
-            TempData["Success"] = agree ? "MR Agreed — forwarded to DCO." : "MR did not agree.";
 
             var darMR = GetDarById(id);
             if (darMR != null)
@@ -234,10 +275,11 @@ namespace BTQCDar.Controllers
                     _ = _mailer.NotifyRejectedAsync(
                             GetRequesterEmail(darMR.RequestedBySamAcc),
                             darMR.DarNo, darMR.DocumentName,
-                            "", _appSettings.URLSITE);
+                            remarks ?? "", _appSettings.URLSITE);
             }
 
-            return RedirectToAction("Detail", new { id });
+            var msg = agree ? "MR Agreed — forwarded to DCO." : "MR did not agree.";
+            return Json(new { success = true, message = msg });
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -247,12 +289,11 @@ namespace BTQCDar.Controllers
         public IActionResult DCORegister(int id, DateTime registeredDate, string? remarks)
         {
             var redirect = RequireLogin(out var session);
-            if (redirect != null) return redirect;
-            if (!session.IsDCO && !session.IsAdmin) return Forbid();
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+            if (!session.IsDCO && !session.IsAdmin)
+                return Json(new { success = false, message = "Access denied." });
 
             UpdateDCO(id, session.SamAcc, registeredDate, DarStatus.Completed, remarks);
-
-            TempData["Success"] = "Document registered by DCO — DAR completed.";
 
             var darDCO = GetDarById(id);
             if (darDCO != null)
@@ -261,31 +302,39 @@ namespace BTQCDar.Controllers
                         darDCO.DarNo, darDCO.DocumentName,
                         _appSettings.URLSITE);
 
-            return RedirectToAction("Detail", new { id });
+            return Json(new { success = true, message = "Document registered — DAR completed." });
         }
 
         // ────────────────────────────────────────────────────────────────────
-        // POST /Dar/Reject
+        // POST /Dar/Reject  — Reviewer or Approver rejects
         // ────────────────────────────────────────────────────────────────────
         [HttpPost]
         public IActionResult Reject(int id, string? remarks)
         {
             var redirect = RequireLogin(out var session);
-            if (redirect != null) return redirect;
-            if (!session.IsDarApprover && !session.IsMR && !session.IsAdmin)
-                return Forbid();
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+
+            // Reviewer or Approver (or Admin) can reject
+            bool isReviewer = string.Equals(session.SamAcc, dar.ReviewerSamAcc,
+                                            StringComparison.OrdinalIgnoreCase);
+            bool isApprover = string.Equals(session.SamAcc, dar.ApproverSamAcc,
+                                            StringComparison.OrdinalIgnoreCase);
+            if (!isReviewer && !isApprover && !session.IsAdmin)
+                return Json(new { success = false, message = "You are not authorized to reject this DAR." });
 
             UpdateStatus(id, DarStatus.Rejected, remarks: remarks);
-            TempData["Error"] = "DAR has been rejected.";
 
-            var darRej = GetDarById(id);
-            if (darRej != null)
+            var requesterEmail = GetRequesterEmail(dar.RequestedBySamAcc);
+            if (!string.IsNullOrEmpty(requesterEmail))
                 _ = _mailer.NotifyRejectedAsync(
-                        GetRequesterEmail(darRej.RequestedBySamAcc),
-                        darRej.DarNo, darRej.DocumentName,
+                        requesterEmail,
+                        dar.DarNo, dar.DocumentName,
                         remarks ?? "", _appSettings.URLSITE);
 
-            return RedirectToAction("Detail", new { id });
+            return Json(new { success = true, message = $"DAR {dar.DarNo} has been rejected." });
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -782,6 +831,26 @@ namespace BTQCDar.Controllers
             cmd.Parameters.AddWithValue("@ApprovedBySam", (object?)approvedBySam ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ApprovedByName", (object?)approvedByName ?? DBNull.Value);
             cmd.Parameters.AddWithValue("@ApprovedDate", (object?)approvedDate ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@Remarks", (object?)remarks ?? DBNull.Value);
+            cmd.ExecuteNonQuery();
+        }
+
+        private void UpdateReviewed(int darId, string reviewerSam, string reviewerName,
+                                    DateTime reviewedDate, string? remarks)
+        {
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
+            const string sql = @"
+                UPDATE [dbo].[dar_Master] SET
+                    ReviewedDate = @ReviewedDate,
+                    Status       = @Status,
+                    Remarks      = COALESCE(@Remarks, Remarks),
+                    UpdatedAt    = GETDATE()
+                WHERE DarId = @DarId";
+            using var cmd = new SqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@DarId", darId);
+            cmd.Parameters.AddWithValue("@ReviewedDate", reviewedDate);
+            cmd.Parameters.AddWithValue("@Status", (int)DarStatus.PendingMR);
             cmd.Parameters.AddWithValue("@Remarks", (object?)remarks ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
