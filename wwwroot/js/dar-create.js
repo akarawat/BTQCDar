@@ -259,8 +259,64 @@ $(function () {
             return;
         }
 
-        submitDar();
+        // Show confirmation popup before submitting
+        showConfirmDialog();
     });
+
+    function showConfirmDialog() {
+        var docTypeName = $('.doc-type-radio:checked').closest('.form-check').find('label').text().trim();
+        var docName = $('[name="DocumentName"]').val().trim() || '(untitled)';
+        var reviewer = $('#ddlReviewer option:selected').text().replace(/\s+/g, ' ').trim();
+        var approver = $('#ddlApprover option:selected').text().replace(/\s+/g, ' ').trim();
+
+        var infoHtml =
+            '<table class="table table-sm table-borderless mb-0 small">' +
+            '<tr><td class="text-muted pe-2 text-nowrap">Document Type</td>' +
+            '    <td class="fw-semibold">' + $('<span>').text(docTypeName).html() + '</td></tr>' +
+            '<tr><td class="text-muted pe-2 text-nowrap">Document Name</td>' +
+            '    <td class="fw-semibold">' + $('<span>').text(docName).html() + '</td></tr>' +
+            '<tr><td class="text-muted pe-2 text-nowrap">Reviewer</td>' +
+            '    <td>' + $('<span>').text(reviewer || '—').html() + '</td></tr>' +
+            '<tr><td class="text-muted pe-2 text-nowrap">Approver</td>' +
+            '    <td>' + $('<span>').text(approver || '—').html() + '</td></tr>' +
+            '</table>';
+
+        // Remove old modal if any
+        $('#darConfirmModal').remove();
+
+        var modal =
+            '<div class="modal fade" id="darConfirmModal" tabindex="-1">' +
+            '  <div class="modal-dialog modal-dialog-centered">' +
+            '    <div class="modal-content">' +
+            '      <div class="modal-header bg-danger text-white py-2">' +
+            '        <h6 class="modal-title mb-0"><i class="bi bi-send me-2"></i>Confirm Submit DAR</h6>' +
+            '        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>' +
+            '      </div>' +
+            '      <div class="modal-body">' +
+            '        <p class="text-muted small mb-3">Please verify the details before submitting.</p>' +
+            infoHtml +
+            '      </div>' +
+            '      <div class="modal-footer py-2">' +
+            '        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">' +
+            '          <i class="bi bi-x-circle me-1"></i>Cancel</button>' +
+            '        <button type="button" class="btn btn-danger btn-sm" id="btnConfirmSubmit">' +
+            '          <i class="bi bi-send me-1"></i>Confirm & Submit</button>' +
+            '      </div>' +
+            '    </div>' +
+            '  </div>' +
+            '</div>';
+
+        $('body').append(modal);
+        var bsModal = new bootstrap.Modal($('#darConfirmModal')[0]);
+        bsModal.show();
+
+        $('#btnConfirmSubmit').off('click').on('click', function () {
+            bsModal.hide();
+            $('#darConfirmModal').on('hidden.bs.modal', function () {
+                submitDar();
+            });
+        });
+    }
 
     function submitDar() {
         var $btn = $('#btnSubmit');
