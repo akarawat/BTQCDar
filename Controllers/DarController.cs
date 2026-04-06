@@ -1103,24 +1103,48 @@ namespace BTQCDar.Controllers
             using var conn = _db.GetQCDarConnection();
             conn.Open();
 
-            // Filter pending items based on user's role
-            var statusFilter = session.IsMR ? (int)DarStatus.PendingMR
-                             : session.IsDCO ? (int)DarStatus.PendingDCO
-                             : (int)DarStatus.PendingApproval;
+            // Admin — see all pending
+            // Otherwise union:
+            //   1. Assigned Reviewer  (Status=PendingApproval, ReviewerSamAcc=me)
+            //   2. Assigned Approver  (Status=PendingMR or PendingDCO+ApproverSignedAt=null, ApproverSamAcc=me)
+            //   3. QMR role           (Status=PendingDCO, MRAgree is null)
+            //   4. DCC role           (Status=PendingDCO, MRAgree=true)
 
-            if (session.IsAdmin) statusFilter = -1; // all pending
-
-            var sql = session.IsAdmin
-                ? @"SELECT DarId,DarNo,DocumentNo,DocumentName,Purpose,RequestedByName,RequestedDate,Status
-                    FROM [dbo].[dar_Master]
-                    WHERE Status IN (1,2,3) ORDER BY CreatedAt ASC"
-                : @"SELECT DarId,DarNo,DocumentNo,DocumentName,Purpose,RequestedByName,RequestedDate,Status
-                    FROM [dbo].[dar_Master]
-                    WHERE Status=@status ORDER BY CreatedAt ASC";
+            string sql;
+            if (session.IsAdmin)
+            {
+                sql = @"SELECT DarId,DarNo,DocumentNo,DocumentName,Purpose,RequestedByName,RequestedDate,Status
+                        FROM [dbo].[dar_Master]
+                        WHERE Status IN (1,2,3)
+                        ORDER BY CreatedAt ASC";
+            }
+            else
+            {
+                sql = @"SELECT DarId,DarNo,DocumentNo,DocumentName,Purpose,RequestedByName,RequestedDate,Status
+                        FROM [dbo].[dar_Master]
+                        WHERE (
+                            -- Reviewer: awaiting my review
+                            (Status = 1 AND LOWER(ReviewerSamAcc) = LOWER(@sam) AND ReviewerSignedAt IS NULL)
+                            OR
+                            -- Approver: awaiting my approval (normal or retry)
+                            (Status IN (2,3) AND LOWER(ApproverSamAcc) = LOWER(@sam) AND ApproverSignedAt IS NULL)
+                            OR
+                            -- QMR: awaiting agreement
+                            (@isMR = 1 AND Status = 3 AND MRAgree IS NULL)
+                            OR
+                            -- DCC: ready to register
+                            (@isDCO = 1 AND Status = 3 AND MRAgree = 1)
+                        )
+                        ORDER BY CreatedAt ASC";
+            }
 
             using var cmd = new SqlCommand(sql, conn);
             if (!session.IsAdmin)
-                cmd.Parameters.AddWithValue("@status", statusFilter);
+            {
+                cmd.Parameters.AddWithValue("@sam", session.SamAcc);
+                cmd.Parameters.AddWithValue("@isMR", session.IsMR ? 1 : 0);
+                cmd.Parameters.AddWithValue("@isDCO", session.IsDCO ? 1 : 0);
+            }
 
             using var rdr = cmd.ExecuteReader();
             while (rdr.Read())
@@ -1139,6 +1163,7 @@ namespace BTQCDar.Controllers
             }
             return list;
         }
+
 
 
         private static UserDropdownModel MapUserDropdown(SqlDataReader r)

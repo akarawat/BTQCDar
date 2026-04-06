@@ -24,7 +24,7 @@ namespace BTQCDar.Controllers
             //if (existing != null && !string.IsNullOrEmpty(existing.SamAcc))
             //    return View(existing);
 
-            
+            /*
             // 2. SSO callback — params present in query string
             if (!string.IsNullOrEmpty(user))
             {
@@ -44,16 +44,21 @@ namespace BTQCDar.Controllers
                 SaveSession(session);
                 return View(session);
             }
-            
+            */
             
             // 2. SSO for Debug
-            /*
-            user = "BERNINATHAILAND\\julaluck.p";
+            user = "BERNINATHAILAND\\Nanthawan.C";
             id = "123456789";
-            email = "Attapol.J@berninathailand.com";
-            fname = "Attapol Jingmak";
-            depart = "Test Department";
-            
+            email = "Nanthawan.C@berninathailand.com";
+            fname = "Nanthawan Chanthong";
+            depart = "Planning, Project & IT";
+
+            //user = "BERNINATHAILAND\\Attapol.j";
+            //id = "123456789";
+            //email = "Attapol.J@berninathailand.com";
+            //fname = "Attapol Jingmak";
+            //depart = "Planning, Project & IT";
+
             //user = "BERNINATHAILAND\\supaporn.t";
             //id = "123456789";
             //email = "supaporn.t@berninathailand.com";
@@ -78,7 +83,7 @@ namespace BTQCDar.Controllers
                 SaveSession(session);
                 return View(session);
             }
-            */
+            
             // 3. No session → redirect to BT SSO
             // BT SSO appends params with "&", so returnUrl must already contain "?"
             //var returnUrl = AuthenUrl;
