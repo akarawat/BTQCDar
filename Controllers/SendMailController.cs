@@ -97,7 +97,7 @@ namespace BTQCDar.Controllers
                 Build("New DAR Pending Your Review", ("warning", "Pending Review"), new[] {
                     ("DAR No", darNo), ("Document Name", documentName),
                     ("Requested By", requesterName), ("Department", requesterDept) },
-                    $"{siteUrl}Dar/Pending", "Review Document",
+                    $"{siteUrl}/Dar/Pending", "Review Document",
                     "You are assigned as the Reviewer for this document action request."));
 
         public Task<bool> NotifyApproverAsync(string approverEmail, string darNo,
@@ -106,7 +106,7 @@ namespace BTQCDar.Controllers
                 Build("DAR Ready for Your Approval", ("info", "Pending Approval"), new[] {
                     ("DAR No", darNo), ("Document Name", documentName),
                     ("Reviewed By", reviewerName) },
-                    $"{siteUrl}Dar/Pending", "Approve Document",
+                    $"{siteUrl}/Dar/Pending", "Approve Document",
                     "You are assigned as the Approver for this document action request."));
 
         public Task<bool> NotifyCompletedAsync(string requesterEmail, string darNo,
@@ -116,7 +116,7 @@ namespace BTQCDar.Controllers
                     ("DAR No", darNo), ("Document Name", documentName),
                     ("Approved By", approverName),
                     ("Date", DateTime.Now.ToString("dd/MM/yyyy HH:mm")) },
-                    $"{siteUrl}Dar/Pending", "View DAR",
+                    $"{siteUrl}/Dar/Pending", "View DAR",
                     "Your document action request has been fully approved."));
 
         public Task<bool> NotifyRejectedAsync(string requesterEmail, string darNo,
@@ -126,7 +126,7 @@ namespace BTQCDar.Controllers
                     ("DAR No", darNo), ("Document Name", documentName),
                     ("Rejected By", rejectedByName),
                     ("Reason", string.IsNullOrEmpty(remarks) ? "—" : remarks) },
-                    $"{siteUrl}Dar/Pending", "View DAR",
+                    $"{siteUrl}/Dar/Pending", "View DAR",
                     "Please review the remarks and resubmit if necessary."));
 
         public Task<bool> NotifyMRAsync(string mrEmail, string darNo,
@@ -134,7 +134,7 @@ namespace BTQCDar.Controllers
             => SendAsync(mrEmail, $"[DAR] Awaiting QMR review — {darNo}",
                 Build("DAR Pending QMR Review", ("info", "Pending QMR"), new[] {
                     ("DAR No", darNo), ("Document", documentName), ("Approved By", approverName) },
-                    $"{siteUrl}Dar/Pending", "Review as QMR",
+                    $"{siteUrl}/Dar/Pending", "Review as QMR",
                     "You are receiving this as Management Representative (QMR)."));
 
         public Task<bool> NotifyDCOAsync(string dcoEmail, string darNo,
@@ -142,7 +142,7 @@ namespace BTQCDar.Controllers
             => SendAsync(dcoEmail, $"[DAR] Please register document — {darNo}",
                 Build("DAR Ready for DCC Registration", ("primary", "Pending DCC"), new[] {
                     ("DAR No", darNo), ("Document", documentName) },
-                    $"{siteUrl}Dar/Pending", "Register Document",
+                    $"{siteUrl}/Dar/Pending", "Register Document",
                     "You are receiving this as Document Control Officer (DCC)."));
 
         // ── HTML builder ──────────────────────────────────────────────────────

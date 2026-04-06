@@ -8,15 +8,16 @@
                          && Model.Status == BTQCDar.Models.DarStatus.PendingApproval
                          && Model.ReviewerSignedAt == null;
 
-    bool canSignReview = canReview;  // same condition — show digital sign button
+    bool canSignReview = canReview;
 
     // Approver — matched by SamAcc stored at Create time
     bool canApprove = (string.Equals(session?.SamAcc, Model.ApproverSamAcc,
                                StringComparison.OrdinalIgnoreCase) || session?.IsAdmin == true)
-                          && Model.Status == BTQCDar.Models.DarStatus.PendingMR
-                          && Model.ApproverSignedAt == null;
+                          && Model.ApproverSignedAt == null
+                          && (Model.Status == BTQCDar.Models.DarStatus.PendingMR ||
+                             (Model.Status == BTQCDar.Models.DarStatus.PendingDCO && Model.ApproverSignedAt == null));
 
-    bool canSignApprove = canApprove;  // same condition — show digital sign button
+    bool canSignApprove = canApprove;
 
     // QMR (IsMR/role=2) — agrees while Status=PendingDCO, before MRAgree is set
     bool canMR = (session?.IsMR == true || session?.IsAdmin == true)
@@ -207,7 +208,14 @@
                                 <td>
                                     @if (Model.ReviewerSignedAt.HasValue)
                                     {
-                                        <span class="badge bg-success">
+                                        <span class="badge bg-success cert-badge"
+                                              style="cursor:pointer"
+                                              data-role="Reviewer"
+                                              data-name="@Model.ReviewerName"
+                                              data-samacc="@Model.ReviewerSamAcc"
+                                              data-signedat="@Model.ReviewerSignedAt?.ToString("dd/MM/yyyy HH:mm")"
+                                              data-thumbprint="@(Model.ReviewerCertThumbprint ?? "—")"
+                                              title="Click to view certificate details">
                                             <i class="bi bi-shield-check me-1"></i>Digitally Signed
                                         </span>
                                     }
@@ -235,7 +243,14 @@
                                 <td>
                                     @if (Model.ApproverSignedAt.HasValue)
                                     {
-                                        <span class="badge bg-success">
+                                        <span class="badge bg-success cert-badge"
+                                              style="cursor:pointer"
+                                              data-role="Approver"
+                                              data-name="@Model.ApproverName"
+                                              data-samacc="@Model.ApproverSamAcc"
+                                              data-signedat="@Model.ApproverSignedAt?.ToString("dd/MM/yyyy HH:mm")"
+                                              data-thumbprint="@(Model.ApproverCertThumbprint ?? "—")"
+                                              title="Click to view certificate details">
                                             <i class="bi bi-shield-check me-1"></i>Digitally Signed
                                         </span>
                                     }
@@ -438,6 +453,56 @@
         </div>
     </div>
 }
+
+<!-- Certificate Detail Modal -->
+<div class="modal fade" id="certModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white py-2">
+                <h6 class="modal-title mb-0">
+                    <i class="bi bi-shield-check me-2"></i>Digital Signature Certificate
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <table class="table table-sm table-borderless mb-0 small">
+                    <tbody>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2" style="width:130px">Role</td>
+                            <td class="py-2" id="cert-role"></td>
+                        </tr>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2">Signed By</td>
+                            <td class="py-2" id="cert-name"></td>
+                        </tr>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2">SamAcc</td>
+                            <td class="py-2 font-monospace" id="cert-samacc"></td>
+                        </tr>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2">Signed At</td>
+                            <td class="py-2" id="cert-signedat"></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted fw-semibold ps-3 py-2">Thumbprint</td>
+                            <td class="py-2">
+                                <code class="small text-break" id="cert-thumbprint"
+                                      style="font-size:0.75rem;word-break:break-all"></code>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer py-2 bg-light">
+                <small class="text-muted me-auto">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Signed via Bernina Thailand Co., Ltd. Digital Signature System
+                </small>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
     <script src="~/js/dar-detail.js" asp-append-version="true"></script>

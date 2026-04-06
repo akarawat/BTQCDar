@@ -173,6 +173,21 @@ $(function () {
         setTimeout(function () { $banner.alert('close'); }, 3000);
     }
 
+    // ── Certificate badge click → show cert detail modal ────────────────
+    $(document).on('click', '.cert-badge', function () {
+        var $b = $(this);
+        $('#cert-role').text($b.data('role') || '—');
+        $('#cert-name').text($b.data('name') || '—');
+        $('#cert-samacc').text($b.data('samacc') || '—');
+        $('#cert-signedat').text($b.data('signedat') || '—');
+        $('#cert-thumbprint').text($b.data('thumbprint') || '—');
+
+        var $certModalEl = $('#certModal');
+        if ($certModalEl.length) {
+            new bootstrap.Modal($certModalEl[0]).show();
+        }
+    });
+
     // CSRF for all AJAX POSTs
     $.ajaxSetup({
         beforeSend: function (xhr, settings) {

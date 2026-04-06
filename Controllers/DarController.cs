@@ -1116,7 +1116,7 @@ namespace BTQCDar.Controllers
                 sql = @"SELECT DarId,DarNo,DocumentNo,DocumentName,Purpose,RequestedByName,RequestedDate,Status
                         FROM [dbo].[dar_Master]
                         WHERE Status IN (1,2,3)
-                        ORDER BY CreatedAt ASC";
+                        ORDER BY CreatedAt DESC";
             }
             else
             {
@@ -1135,7 +1135,7 @@ namespace BTQCDar.Controllers
                             -- DCC: ready to register
                             (@isDCO = 1 AND Status = 3 AND MRAgree = 1)
                         )
-                        ORDER BY CreatedAt ASC";
+                        ORDER BY CreatedAt DESC";
             }
 
             using var cmd = new SqlCommand(sql, conn);
