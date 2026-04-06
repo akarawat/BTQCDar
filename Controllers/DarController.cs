@@ -218,7 +218,7 @@ namespace BTQCDar.Controllers
         }
 
         // ────────────────────────────────────────────────────────────────────
-        // POST /Dar/Approve  — Approver approves → Completed
+        // POST /Dar/Approve  — Approver (Fix role 7/8) approves → PendingDCO
         // ────────────────────────────────────────────────────────────────────
         [HttpPost]
         public IActionResult Approve(int id, string? remarks)
@@ -229,7 +229,6 @@ namespace BTQCDar.Controllers
             var dar = GetDarById(id);
             if (dar == null) return Json(new { success = false, message = "DAR not found." });
 
-            // Only the assigned Approver (or Admin) can approve
             bool isApprover = string.Equals(session.SamAcc, dar.ApproverSamAcc,
                                             StringComparison.OrdinalIgnoreCase);
             if (!isApprover && !session.IsAdmin)
@@ -238,22 +237,20 @@ namespace BTQCDar.Controllers
             if (dar.Status != DarStatus.PendingMR)
                 return Json(new { success = false, message = "DAR is not in Pending Approval status." });
 
-            UpdateStatus(id, DarStatus.Completed,
+            // Advance to PendingDCO — next step: QMR (role=2) must agree, then DCC (role=1) registers
+            UpdateStatus(id, DarStatus.PendingDCO,
                          approvedBySam: session.SamAcc,
                          approvedByName: session.FullName,
                          approvedDate: DateTime.Now,
                          remarks: remarks);
 
-            // Step 3a: Notify Requester — DAR completed
-            var requesterEmail = GetRequesterEmail(dar.RequestedBySamAcc);
-            if (!string.IsNullOrEmpty(requesterEmail))
-                _ = _mailer.NotifyCompletedAsync(
-                        requesterEmail,
-                        dar.DarNo, dar.DocumentName,
-                        session.FullName,           // approverName
-                        _appSettings.URLSITE);
+            // Notify QMR (MR role) that their agreement is required
+            _ = _mailer.NotifyMRAsync(
+                    GetMREmail(),
+                    dar.DarNo, dar.DocumentName,
+                    session.FullName, _appSettings.URLSITE);
 
-            return Json(new { success = true, message = $"DAR {dar.DarNo} approved and completed." });
+            return Json(new { success = true, message = $"DAR {dar.DarNo} approved — forwarded to Document Control Officer." });
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -340,29 +337,27 @@ namespace BTQCDar.Controllers
             if (result == null)
                 return Json(new { success = false, message = "Digital signature failed. Please try again or contact IT." });
 
-            // Save signature + advance status to Completed
+            // Save signature + advance to PendingDCO (QMR + DCC must still agree)
             SaveSignature(id, "Approver", result.SignedAt, result.SignatureBase64,
-                          result.CertThumbprint, (int)DarStatus.Completed);
+                          result.CertThumbprint, (int)DarStatus.PendingDCO);
 
-            // Update ApprovedBy fields too
-            UpdateStatus(id, DarStatus.Completed,
+            // Update ApprovedBy fields
+            UpdateStatus(id, DarStatus.PendingDCO,
                 approvedBySam: session.SamAcc,
                 approvedByName: session.FullName,
                 approvedDate: result.SignedAt,
                 remarks: remarks);
 
-            // Notify Requester
-            var requesterEmail = GetRequesterEmail(dar.RequestedBySamAcc);
-            if (!string.IsNullOrEmpty(requesterEmail))
-                _ = _mailer.NotifyCompletedAsync(
-                        requesterEmail,
-                        dar.DarNo, dar.DocumentName,
-                        session.FullName, _appSettings.URLSITE);
+            // Notify QMR (MR role) that their agreement is required
+            _ = _mailer.NotifyMRAsync(
+                    GetMREmail(),
+                    dar.DarNo, dar.DocumentName,
+                    session.FullName, _appSettings.URLSITE);
 
             return Json(new
             {
                 success = true,
-                message = $"DAR {dar.DarNo} digitally signed and completed.",
+                message = $"DAR {dar.DarNo} digitally signed — forwarded to Document Control Officer.",
                 signedAt = result.SignedAt.ToString("dd/MM/yyyy HH:mm"),
                 signedBy = result.SignedBy
             });
@@ -379,28 +374,40 @@ namespace BTQCDar.Controllers
             if (!session.IsMR && !session.IsAdmin)
                 return Json(new { success = false, message = "Access denied." });
 
-            var nextStatus = agree ? DarStatus.PendingDCO : DarStatus.Rejected;
-            UpdateMR(id, agree, session.SamAcc, DateTime.Now, nextStatus, remarks);
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
 
-            var darMR = GetDarById(id);
-            if (darMR != null)
+            // QMR acts while status is PendingDCO
+            if (dar.Status != DarStatus.PendingDCO)
+                return Json(new { success = false, message = "DAR is not awaiting QMR agreement." });
+
+            if (agree)
             {
-                if (agree)
-                    _ = _mailer.NotifyDCOAsync(
-                            GetDCOEmail(),
-                            darMR.DarNo, darMR.DocumentName,
-                            _appSettings.URLSITE);
-                else
-                    _ = _mailer.NotifyRejectedAsync(
-                            GetRequesterEmail(darMR.RequestedBySamAcc),
-                            darMR.DarNo, darMR.DocumentName,
-                            session.FullName,       // rejectedByName
-                            remarks ?? "",
-                            _appSettings.URLSITE);
-            }
+                // QMR agrees — set flag, status STAYS PendingDCO (DCC must still register)
+                UpdateMR(id, agree, session.SamAcc, DateTime.Now, DarStatus.PendingDCO, remarks);
 
-            var msg = agree ? "MR Agreed — forwarded to DCO." : "MR did not agree.";
-            return Json(new { success = true, message = msg });
+                // Notify DCC that they can now register the document
+                _ = _mailer.NotifyDCOAsync(
+                        GetDCOEmail(),
+                        dar.DarNo, dar.DocumentName,
+                        _appSettings.URLSITE);
+
+                return Json(new { success = true, message = "QMR agreed — DCC can now register the document." });
+            }
+            else
+            {
+                // QMR not agree → Rejected, notify requester
+                UpdateMR(id, agree, session.SamAcc, DateTime.Now, DarStatus.Rejected, remarks);
+
+                _ = _mailer.NotifyRejectedAsync(
+                        GetRequesterEmail(dar.RequestedBySamAcc),
+                        dar.DarNo, dar.DocumentName,
+                        session.FullName,
+                        remarks ?? "",
+                        _appSettings.URLSITE);
+
+                return Json(new { success = true, message = "QMR did not agree — DAR has been rejected." });
+            }
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -414,17 +421,26 @@ namespace BTQCDar.Controllers
             if (!session.IsDCO && !session.IsAdmin)
                 return Json(new { success = false, message = "Access denied." });
 
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+
+            // DCC can register only after QMR has agreed
+            if (dar.MRAgree != true)
+                return Json(new { success = false, message = "QMR has not agreed yet. Please wait for QMR approval before registering." });
+
+            if (dar.Status != DarStatus.PendingDCO)
+                return Json(new { success = false, message = "DAR is not awaiting DCO registration." });
+
             UpdateDCO(id, session.SamAcc, registeredDate, DarStatus.Completed, remarks);
 
-            var darDCO = GetDarById(id);
-            if (darDCO != null)
-                _ = _mailer.NotifyCompletedAsync(
-                        GetRequesterEmail(darDCO.RequestedBySamAcc),
-                        darDCO.DarNo, darDCO.DocumentName,
-                        session.FullName,           // dcoName as approverName
-                        _appSettings.URLSITE);
+            // Notify requester — DAR fully completed
+            _ = _mailer.NotifyCompletedAsync(
+                    GetRequesterEmail(dar.RequestedBySamAcc),
+                    dar.DarNo, dar.DocumentName,
+                    session.FullName,
+                    _appSettings.URLSITE);
 
-            return Json(new { success = true, message = "Document registered — DAR completed." });
+            return Json(new { success = true, message = $"DAR {dar.DarNo} registered and completed." });
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -444,7 +460,8 @@ namespace BTQCDar.Controllers
                                             StringComparison.OrdinalIgnoreCase);
             bool isApprover = string.Equals(session.SamAcc, dar.ApproverSamAcc,
                                             StringComparison.OrdinalIgnoreCase);
-            if (!isReviewer && !isApprover && !session.IsAdmin)
+            bool isMrOrDco = session.IsMR || session.IsDCO;
+            if (!isReviewer && !isApprover && !isMrOrDco && !session.IsAdmin)
                 return Json(new { success = false, message = "You are not authorized to reject this DAR." });
 
             UpdateStatus(id, DarStatus.Rejected, remarks: remarks);

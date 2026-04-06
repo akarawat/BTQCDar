@@ -18,13 +18,15 @@
 
     bool canSignApprove = canApprove;  // same condition — show digital sign button
 
-    // MR / DCO — legacy (kept for backward compat)
+    // QMR (IsMR/role=2) — agrees while Status=PendingDCO, before MRAgree is set
     bool canMR = (session?.IsMR == true || session?.IsAdmin == true)
-                      && Model.Status == BTQCDar.Models.DarStatus.PendingMR
-                      && string.IsNullOrEmpty(Model.ApproverSamAcc); // only if no Approver set
+                  && Model.Status == BTQCDar.Models.DarStatus.PendingDCO
+                  && Model.MRAgree == null;
 
+    // DCC (IsDCO/role=1) — manual "Completed" after QMR has agreed
     bool canDCO = (session?.IsDCO == true || session?.IsAdmin == true)
-                      && Model.Status == BTQCDar.Models.DarStatus.PendingDCO;
+                  && Model.Status == BTQCDar.Models.DarStatus.PendingDCO
+                  && Model.MRAgree == true;
 
     bool canEdit = (Model.Status == BTQCDar.Models.DarStatus.Draft
                        && Model.RequestedBySamAcc == session?.SamAcc)
@@ -275,24 +277,30 @@
                                     }
                                 </td>
                             </tr>
+                            <!-- DCO Section -->
+                            <tr class="table-light">
+                                <td colspan="4" class="fw-semibold small text-muted py-1 ps-3">
+                                    <i class="bi bi-building me-1"></i>Document Control Officer
+                                </td>
+                            </tr>
                             <tr>
-                                <td>Management Representative (MR)</td>
+                                <td class="ps-4">QMR (role=2)</td>
                                 <td>@(Model.MRSamAcc ?? "—")</td>
                                 <td>@(Model.MRDate?.ToString("dd/MM/yyyy") ?? "—")</td>
                                 <td>
                                     @if (Model.MRAgree == true)
                                     {
-                                        <span class="badge bg-success">Agree</span>
+                                        <span class="badge bg-success">Agreed</span>
                                     }
                                     else if (Model.MRAgree == false)
                                     {
 
-                                        <span class="badge bg-danger">Not Agree</span>
+                                        <span class="badge bg-danger">Not Agreed</span>
                                     }
-                                    else if (Model.Status == BTQCDar.Models.DarStatus.PendingMR)
+                                    else if (Model.Status == BTQCDar.Models.DarStatus.PendingDCO)
                                     {
 
-                                        <span class="badge bg-info text-dark">Pending</span>
+                                        <span class="badge bg-warning text-dark">Pending</span>
                                     }
                                     else
                                     {
@@ -302,18 +310,23 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td>Document Control Officer (DCO)</td>
+                                <td class="ps-4">DCC (role=1)</td>
                                 <td>@(Model.DCOSamAcc ?? "—")</td>
                                 <td>@(Model.DocRegisteredDate?.ToString("dd/MM/yyyy") ?? "—")</td>
                                 <td>
                                     @if (Model.DocRegisteredDate.HasValue)
                                     {
-                                        <span class="badge bg-success">Registered</span>
+                                        <span class="badge bg-success">Completed</span>
+                                    }
+                                    else if (Model.Status == BTQCDar.Models.DarStatus.PendingDCO && Model.MRAgree == true)
+                                    {
+
+                                        <span class="badge bg-primary">Pending DCC</span>
                                     }
                                     else if (Model.Status == BTQCDar.Models.DarStatus.PendingDCO)
                                     {
 
-                                        <span class="badge bg-primary">Pending</span>
+                                        <span class="text-muted small">Waiting for QMR</span>
                                     }
                                     else
                                     {
@@ -376,18 +389,26 @@
             }
             @if (canMR)
             {
-                <button class="btn btn-success btn-sm" data-action="mr-agree" data-id="@Model.DarId">
-                    <i class="bi bi-check-circle me-1"></i>MR Agree
-                </button>
-                <button class="btn btn-danger btn-sm" data-action="mr-disagree" data-id="@Model.DarId">
-                    <i class="bi bi-x-circle me-1"></i>MR Not Agree
-                </button>
+                <div class="d-flex flex-column gap-1 border-start border-2 border-warning ps-3">
+                    <small class="text-muted fw-semibold">QMR — Agreement Required</small>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success btn-sm" data-action="mr-agree" data-id="@Model.DarId">
+                            <i class="bi bi-check-circle me-1"></i>QMR Agree
+                        </button>
+                        <button class="btn btn-danger btn-sm" data-action="mr-disagree" data-id="@Model.DarId">
+                            <i class="bi bi-x-circle me-1"></i>QMR Not Agree
+                        </button>
+                    </div>
+                </div>
             }
             @if (canDCO)
             {
-                <button class="btn btn-primary btn-sm" data-action="dco-register" data-id="@Model.DarId">
-                    <i class="bi bi-journal-check me-1"></i>DCO Register
-                </button>
+                <div class="d-flex flex-column gap-1 border-start border-2 border-primary ps-3">
+                    <small class="text-muted fw-semibold">DCC — Manual Completion</small>
+                    <button class="btn btn-primary btn-sm" data-action="dco-register" data-id="@Model.DarId">
+                        <i class="bi bi-journal-check me-1"></i>Mark as Completed
+                    </button>
+                </div>
             }
         </div>
     </div>

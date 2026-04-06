@@ -32,9 +32,9 @@ $(function () {
             'review': 'Review & Forward to Approver',
             'approve': 'Approve DAR',
             'reject': 'Reject DAR',
-            'mr-agree': 'MR — Agree',
-            'mr-disagree': 'MR — Not Agree',
-            'dco-register': 'DCO Register Document'
+            'mr-agree': 'QMR — Agree',
+            'mr-disagree': 'QMR — Not Agree',
+            'dco-register': 'DCC — Mark as Completed'
         };
         $('#modalTitle').text(titles[action] || 'Confirm Action');
 
@@ -57,7 +57,10 @@ $(function () {
             'sign-approve': 'Remarks for digital signature (optional)',
             'review': 'Review comments (optional)',
             'reject': 'Please provide a reason for rejection.',
-            'approve': 'Approval remarks (optional)'
+            'approve': 'Approval remarks (optional)',
+            'mr-agree': 'QMR agreement remarks (optional)',
+            'mr-disagree': 'Please provide a reason for not agreeing.',
+            'dco-register': 'Document registration remarks (optional)'
         };
         $('#actionRemarks').attr('placeholder', hints[action] || 'Enter remarks or reason...');
 
@@ -72,8 +75,8 @@ $(function () {
 
         var remarks = $('#actionRemarks').val().trim();
 
-        // Reject requires a reason
-        if (action === 'reject' && !remarks) {
+        // Reject / not-agree requires a reason
+        if ((action === 'reject' || action === 'mr-disagree') && !remarks) {
             showModalError('Please provide a reason for rejection.');
             return;
         }
