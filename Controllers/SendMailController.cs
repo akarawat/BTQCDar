@@ -1,6 +1,5 @@
-using Newtonsoft.Json;
 using System.Text;
-
+using System.Text.Json;
 namespace BTQCDar.Controllers
 {
     /// <summary>
@@ -63,6 +62,7 @@ namespace BTQCDar.Controllers
                 finalCc = string.Empty;
                 finalSubject = $"[DEBUG → {toEmail}] {subject}";
                 Console.WriteLine($"[SendMail:DEBUG] Redirecting to {DebugEmail} | Original: {toEmail} | {subject}");
+                return false;
             }
             else
             {
@@ -80,7 +80,7 @@ namespace BTQCDar.Controllers
                     IsHtml = true
                 };
 
-                var json = JsonConvert.SerializeObject(payload);
+                var json = System.Text.Json.JsonSerializer.Serialize(payload);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var client = _http.CreateClient();
                 client.Timeout = TimeSpan.FromSeconds(15);

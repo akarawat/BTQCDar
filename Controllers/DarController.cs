@@ -234,7 +234,11 @@ namespace BTQCDar.Controllers
             if (!isApprover && !session.IsAdmin)
                 return Json(new { success = false, message = "You are not the assigned Approver." });
 
-            if (dar.Status != DarStatus.PendingMR)
+            // Allow approval if: PendingMR (normal path)
+            // OR PendingDCO + ApproverSignedAt==null (retry after partial failure)
+            bool canApproveStatus = dar.Status == DarStatus.PendingMR ||
+                                    (dar.Status == DarStatus.PendingDCO && dar.ApproverSignedAt == null);
+            if (!canApproveStatus)
                 return Json(new { success = false, message = "DAR is not in Pending Approval status." });
 
             // Advance to PendingDCO — next step: QMR (role=2) must agree, then DCC (role=1) registers
@@ -273,36 +277,40 @@ namespace BTQCDar.Controllers
             if (dar.Status != DarStatus.PendingApproval)
                 return Json(new { success = false, message = "DAR is not pending review." });
 
-            // Call BTDigitalSign API
-            var result = await _sign.SignDarAsync(
-                darNo: dar.DarNo,
-                signerSamAcc: session.SamAcc,
-                role: "Reviewer",
-                purpose: $"DAR Reviewer Approval — {dar.DarNo}",
-                department: session.DepName,
-                remarks: remarks);
-
-            if (result == null)
-                return Json(new { success = false, message = "Digital signature failed. Please try again or contact IT." });
-
-            // Save signature + advance status via SP
-            SaveSignature(id, "Reviewer", result.SignedAt, result.SignatureBase64,
-                          result.CertThumbprint, (int)DarStatus.PendingMR);
-
-            // Notify Approver
-            if (!string.IsNullOrEmpty(dar.ApproverEmail))
-                _ = _mailer.NotifyApproverAsync(
-                        dar.ApproverEmail,
-                        dar.DarNo, dar.DocumentName,
-                        session.FullName, _appSettings.URLSITE);
-
-            return Json(new
+            try
             {
-                success = true,
-                message = "Document signed — forwarded to Approver.",
-                signedAt = result.SignedAt.ToString("dd/MM/yyyy HH:mm"),
-                signedBy = result.SignedBy
-            });
+                var result = await _sign.SignDarAsync(
+                    darNo: dar.DarNo,
+                    signerSamAcc: session.SamAcc,
+                    role: "Reviewer",
+                    purpose: $"DAR Reviewer Approval — {dar.DarNo}",
+                    department: session.DepName,
+                    remarks: remarks);
+
+                if (result == null)
+                    return Json(new { success = false, message = "Digital signature failed. Please try again or contact IT." });
+
+                SaveSignature(id, "Reviewer", result.SignedAt, result.SignatureBase64,
+                              result.CertThumbprint, (int)DarStatus.PendingMR);
+
+                if (!string.IsNullOrEmpty(dar.ApproverEmail))
+                    _ = _mailer.NotifyApproverAsync(
+                            dar.ApproverEmail, dar.DarNo, dar.DocumentName,
+                            session.FullName, _appSettings.URLSITE);
+
+                return Json(new
+                {
+                    success = true,
+                    message = "Document signed — forwarded to Approver.",
+                    signedAt = result.SignedAt.ToString("dd/MM/yyyy HH:mm"),
+                    signedBy = result.SignedBy
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[SignReview] {ex}");
+                return Json(new { success = false, message = $"Error: {ex.Message}" });
+            }
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -322,45 +330,52 @@ namespace BTQCDar.Controllers
             if (!isApprover && !session.IsAdmin)
                 return Json(new { success = false, message = "You are not the assigned Approver." });
 
-            if (dar.Status != DarStatus.PendingMR)
+            // Allow signing if: PendingMR (normal path)
+            // OR PendingDCO + ApproverSignedAt==null (retry after SaveSignature set status but action failed)
+            bool canSignStatus = dar.Status == DarStatus.PendingMR ||
+                                 (dar.Status == DarStatus.PendingDCO && dar.ApproverSignedAt == null);
+            if (!canSignStatus)
                 return Json(new { success = false, message = "DAR is not pending approval." });
 
-            // Call BTDigitalSign API
-            var result = await _sign.SignDarAsync(
-                darNo: dar.DarNo,
-                signerSamAcc: session.SamAcc,
-                role: "Approver",
-                purpose: $"DAR Approver Approval — {dar.DarNo}",
-                department: session.DepName,
-                remarks: remarks);
-
-            if (result == null)
-                return Json(new { success = false, message = "Digital signature failed. Please try again or contact IT." });
-
-            // Save signature + advance to PendingDCO (QMR + DCC must still agree)
-            SaveSignature(id, "Approver", result.SignedAt, result.SignatureBase64,
-                          result.CertThumbprint, (int)DarStatus.PendingDCO);
-
-            // Update ApprovedBy fields
-            UpdateStatus(id, DarStatus.PendingDCO,
-                approvedBySam: session.SamAcc,
-                approvedByName: session.FullName,
-                approvedDate: result.SignedAt,
-                remarks: remarks);
-
-            // Notify QMR (MR role) that their agreement is required
-            _ = _mailer.NotifyMRAsync(
-                    GetMREmail(),
-                    dar.DarNo, dar.DocumentName,
-                    session.FullName, _appSettings.URLSITE);
-
-            return Json(new
+            try
             {
-                success = true,
-                message = $"DAR {dar.DarNo} digitally signed — forwarded to Document Control Officer.",
-                signedAt = result.SignedAt.ToString("dd/MM/yyyy HH:mm"),
-                signedBy = result.SignedBy
-            });
+                var result = await _sign.SignDarAsync(
+                    darNo: dar.DarNo,
+                    signerSamAcc: session.SamAcc,
+                    role: "Approver",
+                    purpose: $"DAR Approver Approval — {dar.DarNo}",
+                    department: session.DepName,
+                    remarks: remarks);
+
+                if (result == null)
+                    return Json(new { success = false, message = "Digital signature failed. Please try again or contact IT." });
+
+                SaveSignature(id, "Approver", result.SignedAt, result.SignatureBase64,
+                              result.CertThumbprint, (int)DarStatus.PendingDCO);
+
+                UpdateStatus(id, DarStatus.PendingDCO,
+                    approvedBySam: session.SamAcc,
+                    approvedByName: session.FullName,
+                    approvedDate: result.SignedAt,
+                    remarks: remarks);
+
+                _ = _mailer.NotifyMRAsync(
+                        GetMREmail(), dar.DarNo, dar.DocumentName,
+                        session.FullName, _appSettings.URLSITE);
+
+                return Json(new
+                {
+                    success = true,
+                    message = $"DAR {dar.DarNo} digitally signed — forwarded to Document Control Officer.",
+                    signedAt = result.SignedAt.ToString("dd/MM/yyyy HH:mm"),
+                    signedBy = result.SignedBy
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[SignApprove] {ex}");
+                return Json(new { success = false, message = $"Error: {ex.Message}" });
+            }
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -1139,6 +1154,17 @@ namespace BTQCDar.Controllers
                 RoleName = r["RoleName"].ToString() ?? string.Empty,
             };
         }
+        private static DateTime? SafeGetDateTime(SqlDataReader r, string col)
+        {
+            try { var i = r.GetOrdinal(col); return r.IsDBNull(i) ? null : r.GetDateTime(i); }
+            catch { return null; }
+        }
+        private static string? SafeGetString(SqlDataReader r, string col)
+        {
+            try { var i = r.GetOrdinal(col); return r.IsDBNull(i) ? null : r.GetString(i); }
+            catch { return null; }
+        }
+
         private static DarMasterModel MapDar(SqlDataReader r)
         {
             return new DarMasterModel
@@ -1177,12 +1203,13 @@ namespace BTQCDar.Controllers
                 Remarks = r["Remarks"].ToString()!,
                 CreatedAt = (DateTime)r["CreatedAt"],
                 AttachmentFileName = r["AttachmentFileName"].ToString()!,
-                ReviewerSignedAt = r["ReviewerSignedAt"] as DateTime?,
-                ReviewerSignatureBase64 = r["ReviewerSignatureBase64"] as string,
-                ReviewerCertThumbprint = r["ReviewerCertThumbprint"] as string,
-                ApproverSignedAt = r["ApproverSignedAt"] as DateTime?,
-                ApproverSignatureBase64 = r["ApproverSignatureBase64"] as string,
-                ApproverCertThumbprint = r["ApproverCertThumbprint"] as string,
+                // Signature columns — safe read (null if migration 08 not yet run)
+                ReviewerSignedAt = SafeGetDateTime(r, "ReviewerSignedAt"),
+                ReviewerSignatureBase64 = SafeGetString(r, "ReviewerSignatureBase64"),
+                ReviewerCertThumbprint = SafeGetString(r, "ReviewerCertThumbprint"),
+                ApproverSignedAt = SafeGetDateTime(r, "ApproverSignedAt"),
+                ApproverSignatureBase64 = SafeGetString(r, "ApproverSignatureBase64"),
+                ApproverCertThumbprint = SafeGetString(r, "ApproverCertThumbprint"),
                 ReviewerSamAcc = r["ReviewerSamAcc"].ToString()!,
                 ReviewerName = r["ReviewerName"].ToString()!,
                 ReviewerEmail = r["ReviewerEmail"].ToString()!,

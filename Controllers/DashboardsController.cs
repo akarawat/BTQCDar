@@ -21,8 +21,8 @@ namespace BTQCDar.Controllers
         {
             // 1. Already logged in → show dashboard
             var existing = GetSession();
-            if (existing != null && !string.IsNullOrEmpty(existing.SamAcc))
-                return View(existing);
+            //if (existing != null && !string.IsNullOrEmpty(existing.SamAcc))
+            //    return View(existing);
 
             
             // 2. SSO callback — params present in query string
@@ -45,13 +45,21 @@ namespace BTQCDar.Controllers
                 return View(session);
             }
             
-            /*
+            
             // 2. SSO for Debug
+            /*
             user = "BERNINATHAILAND\\julaluck.p";
             id = "123456789";
-            email = "julaluck.p@berninathailand.com";
-            fname = "julaluck panyama";
+            email = "Attapol.J@berninathailand.com";
+            fname = "Attapol Jingmak";
             depart = "Test Department";
+            
+            //user = "BERNINATHAILAND\\supaporn.t";
+            //id = "123456789";
+            //email = "supaporn.t@berninathailand.com";
+            //fname = "Supaporn Jaidee";
+            //depart = "DCC";
+
             if (user != "")
             {
                 string[] userDomain = user.Split('\\');
