@@ -10,6 +10,20 @@ builder.Services.Configure<AppSettingsModel>(
 // ── DI: DB Service ────────────────────────────────────────────────────
 builder.Services.AddScoped<IDbService, DbService>();
 
+// ── DI: Digital Sign Service (Windows SSO — UseDefaultCredentials) ────
+builder.Services.AddHttpClient<IDigitalSignService, DigitalSignService>(client =>
+{
+    client.BaseAddress = new Uri(
+        builder.Configuration["DigitalSignApi:BaseUrl"]
+        ?? "https://bt_digitalsign.berninathailand.com");
+    client.Timeout = TimeSpan.FromSeconds(30);
+})
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    UseDefaultCredentials = true,  // Windows SSO (Kerberos)
+    PreAuthenticate = true   // skip 401 challenge round-trip
+});
+
 // ── DI: Mail Service (scoped so it shares HttpClient lifecycle) ──────────
 builder.Services.AddScoped<BTQCDar.Controllers.SendMailController>();
 

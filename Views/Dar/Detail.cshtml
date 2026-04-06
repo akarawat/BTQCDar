@@ -4,13 +4,19 @@
     var session = ViewBag.Session as BTQCDar.Models.UserSessionModel;
     // Reviewer — matched by SamAcc stored at Create time
     bool canReview = (string.Equals(session?.SamAcc, Model.ReviewerSamAcc,
-                            StringComparison.OrdinalIgnoreCase) || session?.IsAdmin == true)
-                      && Model.Status == BTQCDar.Models.DarStatus.PendingApproval;
+                              StringComparison.OrdinalIgnoreCase) || session?.IsAdmin == true)
+                         && Model.Status == BTQCDar.Models.DarStatus.PendingApproval
+                         && Model.ReviewerSignedAt == null;
+
+    bool canSignReview = canReview;  // same condition — show digital sign button
 
     // Approver — matched by SamAcc stored at Create time
     bool canApprove = (string.Equals(session?.SamAcc, Model.ApproverSamAcc,
-                            StringComparison.OrdinalIgnoreCase) || session?.IsAdmin == true)
-                      && Model.Status == BTQCDar.Models.DarStatus.PendingMR;
+                               StringComparison.OrdinalIgnoreCase) || session?.IsAdmin == true)
+                          && Model.Status == BTQCDar.Models.DarStatus.PendingMR
+                          && Model.ApproverSignedAt == null;
+
+    bool canSignApprove = canApprove;  // same condition — show digital sign button
 
     // MR / DCO — legacy (kept for backward compat)
     bool canMR = (session?.IsMR == true || session?.IsAdmin == true)
@@ -195,10 +201,17 @@
                             <tr>
                                 <td>Reviewer</td>
                                 <td>@(string.IsNullOrEmpty(Model.ReviewerName) ? (Model.ReviewerSamAcc ?? "—") : Model.ReviewerName)</td>
-                                <td>@(Model.ReviewedDate?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td>@(Model.ReviewerSignedAt?.ToString("dd/MM/yyyy HH:mm") ?? Model.ReviewedDate?.ToString("dd/MM/yyyy") ?? "—")</td>
                                 <td>
-                                    @if (Model.ReviewedDate.HasValue)
+                                    @if (Model.ReviewerSignedAt.HasValue)
                                     {
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-shield-check me-1"></i>Digitally Signed
+                                        </span>
+                                    }
+                                    else if (Model.ReviewedDate.HasValue)
+                                    {
+
                                         <span class="badge bg-success">Reviewed</span>
                                     }
                                     else if (!string.IsNullOrEmpty(Model.ReviewerSamAcc))
@@ -218,8 +231,15 @@
                                 <td>@(string.IsNullOrEmpty(Model.ApproverName) ? (Model.ApproverSamAcc ?? "—") : Model.ApproverName)</td>
                                 <td>@(Model.ApprovedDate?.ToString("dd/MM/yyyy") ?? "—")</td>
                                 <td>
-                                    @if (Model.ApprovedDate.HasValue)
+                                    @if (Model.ApproverSignedAt.HasValue)
                                     {
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-shield-check me-1"></i>Digitally Signed
+                                        </span>
+                                    }
+                                    else if (Model.ApprovedDate.HasValue)
+                                    {
+
                                         <span class="badge bg-success">Approved</span>
                                     }
                                     else if (!string.IsNullOrEmpty(Model.ApproverSamAcc))
@@ -321,7 +341,7 @@
 </div>
 
 <!-- Workflow Action Buttons -->
-@if (canReview || canApprove || canMR || canDCO)
+@if (canSignReview || canSignApprove || canReview || canApprove || canMR || canDCO)
 {
     @Html.AntiForgeryToken()
 
@@ -330,19 +350,25 @@
             <i class="bi bi-play-circle me-1 text-danger"></i>Action
         </div>
         <div class="card-body d-flex flex-wrap gap-2">
-            @if (canReview)
+            @if (canSignReview)
             {
-                <button class="btn btn-success btn-sm" data-action="review" data-id="@Model.DarId">
-                    <i class="bi bi-check2-square me-1"></i>Review &amp; Forward to Approver
+                <button class="btn btn-success btn-sm fw-semibold" data-action="sign-review" data-id="@Model.DarId">
+                    <i class="bi bi-shield-check me-1"></i>Sign &amp; Forward to Approver
+                </button>
+                <button class="btn btn-outline-success btn-sm" data-action="review" data-id="@Model.DarId">
+                    <i class="bi bi-check2-square me-1"></i>Review (no signature)
                 </button>
                 <button class="btn btn-danger btn-sm" data-action="reject" data-id="@Model.DarId">
                     <i class="bi bi-x-circle me-1"></i>Reject
                 </button>
             }
-            @if (canApprove)
+            @if (canSignApprove)
             {
-                <button class="btn btn-success btn-sm" data-action="approve" data-id="@Model.DarId">
-                    <i class="bi bi-check-circle me-1"></i>Approve
+                <button class="btn btn-success btn-sm fw-semibold" data-action="sign-approve" data-id="@Model.DarId">
+                    <i class="bi bi-shield-check me-1"></i>Sign &amp; Approve
+                </button>
+                <button class="btn btn-outline-success btn-sm" data-action="approve" data-id="@Model.DarId">
+                    <i class="bi bi-check-circle me-1"></i>Approve (no signature)
                 </button>
                 <button class="btn btn-danger btn-sm" data-action="reject" data-id="@Model.DarId">
                     <i class="bi bi-x-circle me-1"></i>Reject

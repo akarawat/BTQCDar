@@ -27,6 +27,8 @@ $(function () {
 
         // Modal title + confirm button colour
         var titles = {
+            'sign-review': 'Sign & Forward to Approver',
+            'sign-approve': 'Sign & Approve',
             'review': 'Review & Forward to Approver',
             'approve': 'Approve DAR',
             'reject': 'Reject DAR',
@@ -36,7 +38,7 @@ $(function () {
         };
         $('#modalTitle').text(titles[action] || 'Confirm Action');
 
-        var isPositive = ['review', 'approve', 'mr-agree', 'dco-register'].indexOf(action) > -1;
+        var isPositive = ['sign-review', 'sign-approve', 'review', 'approve', 'mr-agree', 'dco-register'].indexOf(action) > -1;
         $('#btnConfirmAction')
             .removeClass('btn-success btn-danger btn-primary')
             .addClass(isPositive ? 'btn-success' : 'btn-danger')
@@ -51,6 +53,8 @@ $(function () {
 
         // Remarks hint per action
         var hints = {
+            'sign-review': 'Remarks for digital signature (optional)',
+            'sign-approve': 'Remarks for digital signature (optional)',
             'review': 'Review comments (optional)',
             'reject': 'Please provide a reason for rejection.',
             'approve': 'Approval remarks (optional)'
@@ -77,6 +81,14 @@ $(function () {
         var url, postData;
 
         switch (action) {
+            case 'sign-review':
+                url = '/Dar/SignReview';
+                postData = { id: id, remarks: remarks };
+                break;
+            case 'sign-approve':
+                url = '/Dar/SignApprove';
+                postData = { id: id, remarks: remarks };
+                break;
             case 'review':
                 url = '/Dar/Review';
                 postData = { id: id, remarks: remarks };

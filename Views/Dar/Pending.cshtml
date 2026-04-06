@@ -1,8 +1,10 @@
 @model List<BTQCDar.Models.DarListItemModel>
-@{ ViewData["Title"] = "รอดำเนินการ"; }
+@{
+    ViewData["Title"] = "Pending Actions";
+}
 
 <div class="d-flex align-items-center mt-3 mb-3">
-    <h5 class="mb-0"><i class="bi bi-inbox-fill me-1 text-warning"></i>รายการรอดำเนินการ</h5>
+    <h5 class="mb-0"><i class="bi bi-inbox-fill me-1 text-warning"></i>Pending Actions</h5>
 </div>
 
 <div class="card border-0 shadow-sm">
@@ -13,8 +15,8 @@
                     <tr>
                         <th>DAR No.</th>
                         <th>Document Name</th>
-                        <th>ผู้ขอ</th>
-                        <th>วันที่ขอ</th>
+                        <th>Requested By</th>
+                        <th>Request Date</th>
                         <th class="text-center">Status</th>
                         <th></th>
                     </tr>
@@ -22,7 +24,11 @@
                 <tbody>
                     @if (!Model.Any())
                     {
-                        <tr><td colspan="6" class="text-center text-muted py-4">ไม่มีรายการรอดำเนินการ</td></tr>
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                No pending items.
+                            </td>
+                        </tr>
                     }
                     @foreach (var item in Model)
                     {
@@ -36,7 +42,7 @@
                             </td>
                             <td>
                                 <a href="/Dar/Detail/@item.DarId" class="btn btn-sm btn-danger">
-                                    <i class="bi bi-pencil-square me-1"></i>ดำเนินการ
+                                    <i class="bi bi-pencil-square me-1"></i>Take Action
                                 </a>
                             </td>
                         </tr>

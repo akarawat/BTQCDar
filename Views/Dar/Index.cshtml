@@ -1,10 +1,12 @@
 @model List<BTQCDar.Models.DarListItemModel>
-@{ ViewData["Title"] = "DAR ของฉัน"; }
+@{
+    ViewData["Title"] = "My DARs";
+}
 
 <div class="d-flex align-items-center mt-3 mb-3 gap-2">
-    <h5 class="mb-0"><i class="bi bi-list-ul me-1 text-danger"></i>DAR ของฉัน</h5>
+    <h5 class="mb-0"><i class="bi bi-list-ul me-1 text-danger"></i>My DARs</h5>
     <a href="/Dar/Create" class="btn btn-danger btn-sm ms-auto">
-        <i class="bi bi-plus-circle me-1"></i>สร้างใหม่
+        <i class="bi bi-plus-circle me-1"></i>New DAR
     </a>
 </div>
 
@@ -18,7 +20,7 @@
                         <th>Document No.</th>
                         <th>Document Name</th>
                         <th>Purpose</th>
-                        <th>วันที่ขอ</th>
+                        <th>Request Date</th>
                         <th class="text-center">Status</th>
                         <th></th>
                     </tr>
@@ -26,7 +28,11 @@
                 <tbody>
                     @if (!Model.Any())
                     {
-                        <tr><td colspan="7" class="text-center text-muted py-4">ยังไม่มีรายการ DAR</td></tr>
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                No DAR records found.
+                            </td>
+                        </tr>
                     }
                     @foreach (var item in Model)
                     {
