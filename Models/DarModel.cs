@@ -105,6 +105,15 @@ namespace BTQCDar.Models
         public string ApproverName   { get; set; } = string.Empty;
         public string ApproverEmail  { get; set; } = string.Empty;
 
+        // Reviewer digital signature (from BTDigitalSign API)
+        public DateTime? ReviewerSignedAt { get; set; }
+        public string? ReviewerSignatureBase64 { get; set; }
+        public string? ReviewerCertThumbprint { get; set; }
+
+        // Approver digital signature (from BTDigitalSign API)
+        public DateTime? ApproverSignedAt { get; set; }
+        public string? ApproverSignatureBase64 { get; set; }
+        public string? ApproverCertThumbprint { get; set; }
         // Legacy Approved fields (kept for backward compat)
         public string?   ApprovedBySamAcc { get; set; }
         public string?   ApprovedByName   { get; set; }

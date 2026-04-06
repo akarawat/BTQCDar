@@ -6,16 +6,19 @@ namespace BTQCDar.Controllers
         private readonly IWebHostEnvironment _env;
         private readonly SendMailController _mailer;
         private readonly AppSettingsModel _appSettings;
+        private readonly IDigitalSignService _sign;
 
         public DarController(IDbService db,
                              IWebHostEnvironment env,
                              SendMailController mailer,
-                             IOptions<AppSettingsModel> settings)
+                             IOptions<AppSettingsModel> settings,
+                             IDigitalSignService sign)
         {
             _db = db;
             _env = env;
             _mailer = mailer;
             _appSettings = settings.Value;
+            _sign = sign;
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -251,6 +254,118 @@ namespace BTQCDar.Controllers
                         _appSettings.URLSITE);
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} approved and completed." });
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // POST /Dar/SignReview — Reviewer signs digitally via BTDigitalSign API
+        // ────────────────────────────────────────────────────────────────────
+        [HttpPost]
+        public async Task<IActionResult> SignReview(int id, string? remarks)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+
+            bool isReviewer = string.Equals(session.SamAcc, dar.ReviewerSamAcc,
+                                            StringComparison.OrdinalIgnoreCase);
+            if (!isReviewer && !session.IsAdmin)
+                return Json(new { success = false, message = "You are not the assigned Reviewer." });
+
+            if (dar.Status != DarStatus.PendingApproval)
+                return Json(new { success = false, message = "DAR is not pending review." });
+
+            // Call BTDigitalSign API
+            var result = await _sign.SignDarAsync(
+                darNo: dar.DarNo,
+                signerSamAcc: session.SamAcc,
+                role: "Reviewer",
+                purpose: $"DAR Reviewer Approval — {dar.DarNo}",
+                department: session.DepName,
+                remarks: remarks);
+
+            if (result == null)
+                return Json(new { success = false, message = "Digital signature failed. Please try again or contact IT." });
+
+            // Save signature + advance status via SP
+            SaveSignature(id, "Reviewer", result.SignedAt, result.SignatureBase64,
+                          result.CertThumbprint, (int)DarStatus.PendingMR);
+
+            // Notify Approver
+            if (!string.IsNullOrEmpty(dar.ApproverEmail))
+                _ = _mailer.NotifyApproverAsync(
+                        dar.ApproverEmail,
+                        dar.DarNo, dar.DocumentName,
+                        session.FullName, _appSettings.URLSITE);
+
+            return Json(new
+            {
+                success = true,
+                message = "Document signed — forwarded to Approver.",
+                signedAt = result.SignedAt.ToString("dd/MM/yyyy HH:mm"),
+                signedBy = result.SignedBy
+            });
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // POST /Dar/SignApprove — Approver signs digitally via BTDigitalSign API
+        // ────────────────────────────────────────────────────────────────────
+        [HttpPost]
+        public async Task<IActionResult> SignApprove(int id, string? remarks)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+
+            bool isApprover = string.Equals(session.SamAcc, dar.ApproverSamAcc,
+                                            StringComparison.OrdinalIgnoreCase);
+            if (!isApprover && !session.IsAdmin)
+                return Json(new { success = false, message = "You are not the assigned Approver." });
+
+            if (dar.Status != DarStatus.PendingMR)
+                return Json(new { success = false, message = "DAR is not pending approval." });
+
+            // Call BTDigitalSign API
+            var result = await _sign.SignDarAsync(
+                darNo: dar.DarNo,
+                signerSamAcc: session.SamAcc,
+                role: "Approver",
+                purpose: $"DAR Approver Approval — {dar.DarNo}",
+                department: session.DepName,
+                remarks: remarks);
+
+            if (result == null)
+                return Json(new { success = false, message = "Digital signature failed. Please try again or contact IT." });
+
+            // Save signature + advance status to Completed
+            SaveSignature(id, "Approver", result.SignedAt, result.SignatureBase64,
+                          result.CertThumbprint, (int)DarStatus.Completed);
+
+            // Update ApprovedBy fields too
+            UpdateStatus(id, DarStatus.Completed,
+                approvedBySam: session.SamAcc,
+                approvedByName: session.FullName,
+                approvedDate: result.SignedAt,
+                remarks: remarks);
+
+            // Notify Requester
+            var requesterEmail = GetRequesterEmail(dar.RequestedBySamAcc);
+            if (!string.IsNullOrEmpty(requesterEmail))
+                _ = _mailer.NotifyCompletedAsync(
+                        requesterEmail,
+                        dar.DarNo, dar.DocumentName,
+                        session.FullName, _appSettings.URLSITE);
+
+            return Json(new
+            {
+                success = true,
+                message = $"DAR {dar.DarNo} digitally signed and completed.",
+                signedAt = result.SignedAt.ToString("dd/MM/yyyy HH:mm"),
+                signedBy = result.SignedBy
+            });
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -1045,6 +1160,12 @@ namespace BTQCDar.Controllers
                 Remarks = r["Remarks"].ToString()!,
                 CreatedAt = (DateTime)r["CreatedAt"],
                 AttachmentFileName = r["AttachmentFileName"].ToString()!,
+                ReviewerSignedAt = r["ReviewerSignedAt"] as DateTime?,
+                ReviewerSignatureBase64 = r["ReviewerSignatureBase64"] as string,
+                ReviewerCertThumbprint = r["ReviewerCertThumbprint"] as string,
+                ApproverSignedAt = r["ApproverSignedAt"] as DateTime?,
+                ApproverSignatureBase64 = r["ApproverSignatureBase64"] as string,
+                ApproverCertThumbprint = r["ApproverCertThumbprint"] as string,
                 ReviewerSamAcc = r["ReviewerSamAcc"].ToString()!,
                 ReviewerName = r["ReviewerName"].ToString()!,
                 ReviewerEmail = r["ReviewerEmail"].ToString()!,
@@ -1062,6 +1183,25 @@ namespace BTQCDar.Controllers
         /// </summary>
         private static string S(string? v) => v ?? string.Empty;
 
+
+        private void SaveSignature(int darId, string role, DateTime signedAt,
+                                   string signatureBase64, string certThumbprint, int nextStatus)
+        {
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
+            using var cmd = new SqlCommand("dbo.usp_SaveSignature", conn)
+            {
+                CommandType = System.Data.CommandType.StoredProcedure,
+                CommandTimeout = 10
+            };
+            cmd.Parameters.AddWithValue("@DarId", darId);
+            cmd.Parameters.AddWithValue("@Role", role);
+            cmd.Parameters.AddWithValue("@SignedAt", signedAt);
+            cmd.Parameters.AddWithValue("@SignatureBase64", signatureBase64);
+            cmd.Parameters.AddWithValue("@CertThumbprint", certThumbprint);
+            cmd.Parameters.AddWithValue("@NextStatus", nextStatus);
+            cmd.ExecuteNonQuery();
+        }
         private static void BindDarParams(SqlCommand cmd, DarMasterModel m)
         {
             cmd.Parameters.AddWithValue("@DarNo", S(m.DarNo));
