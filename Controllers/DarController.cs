@@ -108,7 +108,7 @@ namespace BTQCDar.Controllers
                             model.DarNo, model.DocumentName,
                             model.RequestedByName,
                             session.DepName,
-                            _appSettings.URLSITE);
+                            _appSettings.URLSITE, newId);
 
                 return Json(new
                 {
@@ -212,7 +212,7 @@ namespace BTQCDar.Controllers
                         dar.ApproverEmail,
                         dar.DarNo, dar.DocumentName,
                         session.FullName,           // reviewerName
-                        _appSettings.URLSITE);
+                        _appSettings.URLSITE, id);
 
             return Json(new { success = true, message = "Reviewed — forwarded to Approver." });
         }
@@ -252,7 +252,7 @@ namespace BTQCDar.Controllers
             _ = _mailer.NotifyMRAsync(
                     GetMREmail(),
                     dar.DarNo, dar.DocumentName,
-                    session.FullName, _appSettings.URLSITE);
+                    session.FullName, _appSettings.URLSITE, id);
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} approved — forwarded to Document Control Officer." });
         }
@@ -296,7 +296,7 @@ namespace BTQCDar.Controllers
                 if (!string.IsNullOrEmpty(dar.ApproverEmail))
                     _ = _mailer.NotifyApproverAsync(
                             dar.ApproverEmail, dar.DarNo, dar.DocumentName,
-                            session.FullName, _appSettings.URLSITE);
+                            session.FullName, _appSettings.URLSITE, id);
 
                 return Json(new
                 {
@@ -361,7 +361,7 @@ namespace BTQCDar.Controllers
 
                 _ = _mailer.NotifyMRAsync(
                         GetMREmail(), dar.DarNo, dar.DocumentName,
-                        session.FullName, _appSettings.URLSITE);
+                        session.FullName, _appSettings.URLSITE, id);
 
                 return Json(new
                 {
@@ -405,7 +405,7 @@ namespace BTQCDar.Controllers
                 _ = _mailer.NotifyDCOAsync(
                         GetDCOEmail(),
                         dar.DarNo, dar.DocumentName,
-                        _appSettings.URLSITE);
+                        _appSettings.URLSITE, id);
 
                 return Json(new { success = true, message = "QMR agreed — DCC can now register the document." });
             }
@@ -419,7 +419,7 @@ namespace BTQCDar.Controllers
                         dar.DarNo, dar.DocumentName,
                         session.FullName,
                         remarks ?? "",
-                        _appSettings.URLSITE);
+                        _appSettings.URLSITE, id);
 
                 return Json(new { success = true, message = "QMR did not agree — DAR has been rejected." });
             }
@@ -453,7 +453,7 @@ namespace BTQCDar.Controllers
                     GetRequesterEmail(dar.RequestedBySamAcc),
                     dar.DarNo, dar.DocumentName,
                     session.FullName,
-                    _appSettings.URLSITE);
+                    _appSettings.URLSITE, id);
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} registered and completed." });
         }
@@ -488,7 +488,7 @@ namespace BTQCDar.Controllers
                         dar.DarNo, dar.DocumentName,
                         session.FullName,           // rejectedByName
                         remarks ?? "",
-                        _appSettings.URLSITE);
+                        _appSettings.URLSITE, id);
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} has been rejected." });
         }
@@ -691,7 +691,51 @@ namespace BTQCDar.Controllers
                 return Json(new { isAllowed = false });
             }
         }
+        // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/PendingCount  — returns pending count for current user
+        // ────────────────────────────────────────────────────────────────────
+        [HttpGet]
+        public IActionResult PendingCount()
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { count = 0 });
 
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+
+                string sql;
+                SqlCommand cmd;
+
+                if (session.IsAdmin)
+                {
+                    sql = "SELECT COUNT(*) FROM [dbo].[dar_Master] WHERE Status IN (1,2,3)";
+                    cmd = new SqlCommand(sql, conn);
+                }
+                else
+                {
+                    sql = @"SELECT COUNT(*) FROM [dbo].[dar_Master]
+                            WHERE (
+                                (Status = 1 AND LOWER(ReviewerSamAcc) = LOWER(@sam) AND ReviewerSignedAt IS NULL)
+                                OR (Status IN (2,3) AND LOWER(ApproverSamAcc) = LOWER(@sam) AND ApproverSignedAt IS NULL)
+                                OR (@isMR  = 1 AND Status = 3 AND MRAgree IS NULL)
+                                OR (@isDCO = 1 AND Status = 3 AND MRAgree = 1)
+                            )";
+                    cmd = new SqlCommand(sql, conn);
+                    cmd.Parameters.AddWithValue("@sam", session.SamAcc);
+                    cmd.Parameters.AddWithValue("@isMR", session.IsMR ? 1 : 0);
+                    cmd.Parameters.AddWithValue("@isDCO", session.IsDCO ? 1 : 0);
+                }
+
+                var count = (int)cmd.ExecuteScalar();
+                return Json(new { count });
+            }
+            catch
+            {
+                return Json(new { count = 0 });
+            }
+        }
         // ────────────────────────────────────────────────────────────────────
         // GET /Dar/Stats  — JSON stats for dashboard widget
         // ────────────────────────────────────────────────────────────────────
@@ -750,6 +794,7 @@ namespace BTQCDar.Controllers
         /// <summary>Notify all users flagged as Approver in dar_UserRoles</summary>
         private async Task NotifyApproversAsync(string darNo, string documentName, string requesterName)
         {
+            int DarId = GetDarIdByDarNo(darNo);
             try
             {
                 using var conn = _db.GetQCDarConnection();
@@ -763,13 +808,29 @@ namespace BTQCDar.Controllers
                     var email = GetRequesterEmail(rdr["SamAcc"].ToString()!);
                     if (!string.IsNullOrEmpty(email))
                         tasks.Add(_mailer.NotifyApproverAsync(
-                            email, darNo, documentName, requesterName, _appSettings.URLSITE));
+                            email, darNo, documentName, requesterName, _appSettings.URLSITE, DarId));
                 }
                 await Task.WhenAll(tasks);
             }
             catch { /* non-fatal */ }
         }
-
+        /// <summary>Get email from BT_HR by SamAcc</summary>
+        private int GetDarIdByDarNo(string darNo)
+        {
+            if (string.IsNullOrEmpty(darNo)) return 0;
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+                const string sql = "SELECT DarId FROM [dbo].[dar_Master] WHERE DarNo = @DarNo";
+                using var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@DarNo", darNo);
+                int _darId = int.Parse(cmd.ExecuteScalar().ToString());
+                conn.Close();
+                return _darId;
+            }
+            catch { return 0; }
+        }
         /// <summary>Get email from BT_HR by SamAcc</summary>
         private string GetRequesterEmail(string samAcc)
         {

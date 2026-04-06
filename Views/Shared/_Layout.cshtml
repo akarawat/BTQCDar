@@ -60,6 +60,9 @@
                     <li class="nav-item">
                         <a class="nav-link" href="/Dar/Pending">
                             <i class="bi bi-inbox me-1"></i>Pending Actions
+                            <span id="navPendingBadge"
+                                  class="badge rounded-pill bg-danger ms-1"
+                                  style="display:none;font-size:0.7rem;vertical-align:middle"></span>
                         </a>
                     </li>
                     @if (_user != null && _user.IsAdmin)
