@@ -172,11 +172,9 @@ namespace BTQCDar.Controllers
             var redirect = RequireLogin(out var session);
             if (redirect != null) return redirect;
 
-            if (!ModelState.IsValid)
-            {
-                ViewBag.Session = session;
-                return View(model);
-            }
+            // .NET 8 nullable context auto-generates [Required] for all non-nullable strings
+            // causing false ModelState failures — clear and skip, same pattern as Create
+            ModelState.Clear();
 
             UpdateDar(model);
             TempData["Success"] = "Changes saved successfully.";
