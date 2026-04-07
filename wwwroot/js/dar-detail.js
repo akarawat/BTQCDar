@@ -32,6 +32,8 @@ $(function () {
             'review': 'Review & Forward to Approver',
             'approve': 'Approve DAR',
             'reject': 'Reject DAR',
+            'sign-mr-agree': 'Sign & Agree (QMR)',
+            'sign-dco-register': 'Sign & Complete (DCC)',
             'mr-agree': 'QMR — Agree',
             'mr-disagree': 'QMR — Not Agree',
             'dco-register': 'DCC — Mark as Completed'
@@ -59,6 +61,8 @@ $(function () {
             'review': 'Review comments (optional)',
             'reject': 'Please provide a reason for rejection.',
             'approve': 'Approval remarks (optional)',
+            'sign-mr-agree': 'Remarks for QMR digital signature (optional)',
+            'sign-dco-register': 'Remarks for DCC digital signature (optional)',
             'mr-agree': 'QMR agreement remarks (optional)',
             'mr-disagree': 'Please provide a reason for not agreeing.',
             'dco-register': 'Document registration remarks (optional)'
@@ -112,6 +116,19 @@ $(function () {
             case 'mr-disagree':
                 url = '/Dar/MRAgree';
                 postData = { id: id, agree: false, remarks: remarks };
+                break;
+            case 'sign-mr-agree':
+                url = '/Dar/SignMRAgree';
+                postData = { id: id, remarks: remarks };
+                break;
+            case 'sign-dco-register':
+                var dcoDateSign = $('#dcoDate').val();
+                if (!dcoDateSign) { showModalError('Please enter the Doc Registered Date.'); return; }
+                url = '/Dar/SignDCORegister';
+                postData = {
+                    id: id, registeredDate: dcoDateSign,
+                    dcoRemarks: $('#dcoRemarks').val().trim()
+                };
                 break;
             case 'dco-register':
                 var dcoDate = $('#dcoDate').val();

@@ -307,8 +307,20 @@
                                 <td>@(Model.MRSamAcc ?? "—")</td>
                                 <td>@(Model.MRDate?.ToString("dd/MM/yyyy") ?? "—")</td>
                                 <td>
-                                    @if (Model.MRAgree == true)
+                                    @if (Model.MRSignedAt.HasValue)
                                     {
+                                        <span class="badge bg-success cert-badge" style="cursor:pointer"
+                                              data-role="QMR" data-name="@Model.MRSamAcc"
+                                              data-samacc="@Model.MRSamAcc"
+                                              data-signedat="@Model.MRSignedAt?.ToString("dd/MM/yyyy HH:mm")"
+                                              data-thumbprint="@(Model.MRCertThumbprint ?? "—")"
+                                              title="Click to view certificate">
+                                            <i class="bi bi-shield-check me-1"></i>Digitally Signed
+                                        </span>
+                                    }
+                                    else if (Model.MRAgree == true)
+                                    {
+
                                         <span class="badge bg-success">Agreed</span>
                                     }
                                     else if (Model.MRAgree == false)
@@ -333,8 +345,20 @@
                                 <td>@(Model.DCOSamAcc ?? "—")</td>
                                 <td>@(Model.DocRegisteredDate?.ToString("dd/MM/yyyy") ?? "—")</td>
                                 <td>
-                                    @if (Model.DocRegisteredDate.HasValue)
+                                    @if (Model.DCOSignedAt.HasValue)
                                     {
+                                        <span class="badge bg-success cert-badge" style="cursor:pointer"
+                                              data-role="DCC" data-name="@Model.DCOSamAcc"
+                                              data-samacc="@Model.DCOSamAcc"
+                                              data-signedat="@Model.DCOSignedAt?.ToString("dd/MM/yyyy HH:mm")"
+                                              data-thumbprint="@(Model.DCOCertThumbprint ?? "—")"
+                                              title="Click to view certificate">
+                                            <i class="bi bi-shield-check me-1"></i>Digitally Signed
+                                        </span>
+                                    }
+                                    else if (Model.DocRegisteredDate.HasValue)
+                                    {
+
                                         <span class="badge bg-success">Completed</span>
                                     }
                                     else if (Model.Status == BTQCDar.Models.DarStatus.PendingDCO && Model.MRAgree == true)
@@ -420,11 +444,14 @@
                 <div class="d-flex flex-column gap-1 border-start border-2 border-warning ps-3">
                     <small class="text-muted fw-semibold">QMR — Agreement Required</small>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-success btn-sm" data-action="mr-agree" data-id="@Model.DarId">
-                            <i class="bi bi-check-circle me-1"></i>QMR Agree
+                        <button class="btn btn-success btn-sm fw-semibold" data-action="sign-mr-agree" data-id="@Model.DarId">
+                            <i class="bi bi-shield-check me-1"></i>Sign &amp; Agree
+                        </button>
+                        <button class="btn btn-outline-success btn-sm" data-action="mr-agree" data-id="@Model.DarId">
+                            <i class="bi bi-check-circle me-1"></i>Agree (no signature)
                         </button>
                         <button class="btn btn-danger btn-sm" data-action="mr-disagree" data-id="@Model.DarId">
-                            <i class="bi bi-x-circle me-1"></i>QMR Not Agree
+                            <i class="bi bi-x-circle me-1"></i>Not Agree
                         </button>
                     </div>
                 </div>
@@ -432,10 +459,15 @@
             @if (canDCO)
             {
                 <div class="d-flex flex-column gap-1 border-start border-2 border-primary ps-3">
-                    <small class="text-muted fw-semibold">DCC — Manual Completion</small>
-                    <button class="btn btn-primary btn-sm" data-action="dco-register" data-id="@Model.DarId">
-                        <i class="bi bi-journal-check me-1"></i>Mark as Completed
-                    </button>
+                    <small class="text-muted fw-semibold">DCC — Registration</small>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary btn-sm fw-semibold" data-action="sign-dco-register" data-id="@Model.DarId">
+                            <i class="bi bi-shield-check me-1"></i>Sign &amp; Complete
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm" data-action="dco-register" data-id="@Model.DarId">
+                            <i class="bi bi-journal-check me-1"></i>Complete (no signature)
+                        </button>
+                    </div>
                 </div>
             }
         </div>

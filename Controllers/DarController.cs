@@ -379,6 +379,119 @@ namespace BTQCDar.Controllers
         }
 
         // ────────────────────────────────────────────────────────────────────
+        // POST /Dar/SignMRAgree — QMR digitally signs + agrees
+        // ────────────────────────────────────────────────────────────────────
+        [HttpPost]
+        public async Task<IActionResult> SignMRAgree(int id, string? remarks)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+            if (!session.IsMR && !session.IsAdmin)
+                return Json(new { success = false, message = "Access denied." });
+
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+            if (dar.Status != DarStatus.PendingDCO)
+                return Json(new { success = false, message = "DAR is not awaiting QMR agreement." });
+            if (dar.MRAgree == true)
+                return Json(new { success = false, message = "QMR has already agreed." });
+
+            try
+            {
+                var result = await _sign.SignDarAsync(
+                    darNo: dar.DarNo,
+                    signerSamAcc: session.SamAcc,
+                    role: "QMR",
+                    purpose: $"QMR Agreement — {dar.DarNo}",
+                    department: session.DepName,
+                    remarks: remarks);
+
+                if (result == null)
+                    return Json(new { success = false, message = "Digital signature failed. Please try again or contact IT." });
+
+                // Save signature fields
+                SaveMRSignature(id, result.SignedAt, result.SignatureBase64, result.CertThumbprint);
+
+                // Set MRAgree=true, status stays PendingDCO
+                UpdateMR(id, true, session.SamAcc, result.SignedAt, DarStatus.PendingDCO, remarks);
+
+                _ = _mailer.NotifyDCOAsync(
+                        GetDCOEmail(), dar.DarNo, dar.DocumentName,
+                        _appSettings.URLSITE, id);
+
+                return Json(new
+                {
+                    success = true,
+                    message = "QMR digitally signed & agreed — DCC can now register the document.",
+                    signedAt = result.SignedAt.ToString("dd/MM/yyyy HH:mm"),
+                    signedBy = result.SignedBy
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[SignMRAgree] {ex}");
+                return Json(new { success = false, message = $"Error: {ex.Message}" });
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // POST /Dar/SignDCORegister — DCC digitally signs + completes
+        // ────────────────────────────────────────────────────────────────────
+        [HttpPost]
+        public async Task<IActionResult> SignDCORegister(int id, DateTime registeredDate, string? dcoRemarks)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+            if (!session.IsDCO && !session.IsAdmin)
+                return Json(new { success = false, message = "Access denied." });
+
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+            if (dar.MRAgree != true)
+                return Json(new { success = false, message = "QMR has not agreed yet." });
+            if (dar.Status != DarStatus.PendingDCO)
+                return Json(new { success = false, message = "DAR is not awaiting DCO registration." });
+
+            try
+            {
+                var result = await _sign.SignDarAsync(
+                    darNo: dar.DarNo,
+                    signerSamAcc: session.SamAcc,
+                    role: "DCC",
+                    purpose: $"DCC Registration — {dar.DarNo}",
+                    department: session.DepName,
+                    remarks: dcoRemarks);
+
+                if (result == null)
+                    return Json(new { success = false, message = "Digital signature failed. Please try again or contact IT." });
+
+                // Save signature fields
+                SaveDCOSignature(id, result.SignedAt, result.SignatureBase64, result.CertThumbprint);
+
+                // Update DCO + complete
+                UpdateDCO(id, session.SamAcc, registeredDate, DarStatus.Completed, dcoRemarks);
+
+                _ = _mailer.NotifyCompletedAsync(
+                        GetRequesterEmail(dar.RequestedBySamAcc),
+                        dar.DarNo, dar.DocumentName,
+                        session.FullName, _appSettings.URLSITE, id);
+
+                return Json(new
+                {
+                    success = true,
+                    message = $"DCC digitally signed & registered — DAR {dar.DarNo} completed.",
+                    signedAt = result.SignedAt.ToString("dd/MM/yyyy HH:mm"),
+                    signedBy = result.SignedBy
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[SignDCORegister] {ex}");
+                return Json(new { success = false, message = $"Error: {ex.Message}" });
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
         // POST /Dar/MRAgree
         // ────────────────────────────────────────────────────────────────────
         [HttpPost]
@@ -1310,6 +1423,13 @@ namespace BTQCDar.Controllers
                 MRDate = r["MRDate"] as DateTime?,
                 DCOSamAcc = r["DCOSamAcc"] as string,
                 DocRegisteredDate = r["DocRegisteredDate"] as DateTime?,
+                DCORemarks = SafeGetString(r, "DCORemarks"),
+                MRSignedAt = SafeGetDateTime(r, "MRSignedAt"),
+                MRSignatureBase64 = SafeGetString(r, "MRSignatureBase64"),
+                MRCertThumbprint = SafeGetString(r, "MRCertThumbprint"),
+                DCOSignedAt = SafeGetDateTime(r, "DCOSignedAt"),
+                DCOSignatureBase64 = SafeGetString(r, "DCOSignatureBase64"),
+                DCOCertThumbprint = SafeGetString(r, "DCOCertThumbprint"),
                 Status = (DarStatus)(int)r["Status"],
                 Remarks = r["Remarks"].ToString()!,
                 CreatedAt = (DateTime)r["CreatedAt"],
@@ -1355,6 +1475,43 @@ namespace BTQCDar.Controllers
             cmd.Parameters.AddWithValue("@SignatureBase64", signatureBase64);
             cmd.Parameters.AddWithValue("@CertThumbprint", certThumbprint);
             cmd.Parameters.AddWithValue("@NextStatus", nextStatus);
+            cmd.ExecuteNonQuery();
+        }
+        private void SaveMRSignature(int darId, DateTime signedAt,
+                                   string signatureBase64, string certThumbprint)
+        {
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
+            const string sql = @"UPDATE [dbo].[dar_Master] SET
+                MRSignedAt        = @SignedAt,
+                MRSignatureBase64 = @Sig,
+                MRCertThumbprint  = @Thumb,
+                UpdatedAt         = GETDATE()
+                WHERE DarId = @DarId";
+            using var cmd = new SqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@DarId", darId);
+            cmd.Parameters.AddWithValue("@SignedAt", signedAt);
+            cmd.Parameters.AddWithValue("@Sig", signatureBase64);
+            cmd.Parameters.AddWithValue("@Thumb", certThumbprint);
+            cmd.ExecuteNonQuery();
+        }
+
+        private void SaveDCOSignature(int darId, DateTime signedAt,
+                                      string signatureBase64, string certThumbprint)
+        {
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
+            const string sql = @"UPDATE [dbo].[dar_Master] SET
+                DCOSignedAt        = @SignedAt,
+                DCOSignatureBase64 = @Sig,
+                DCOCertThumbprint  = @Thumb,
+                UpdatedAt          = GETDATE()
+                WHERE DarId = @DarId";
+            using var cmd = new SqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@DarId", darId);
+            cmd.Parameters.AddWithValue("@SignedAt", signedAt);
+            cmd.Parameters.AddWithValue("@Sig", signatureBase64);
+            cmd.Parameters.AddWithValue("@Thumb", certThumbprint);
             cmd.ExecuteNonQuery();
         }
         private static void BindDarParams(SqlCommand cmd, DarMasterModel m)
