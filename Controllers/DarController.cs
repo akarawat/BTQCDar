@@ -605,7 +605,27 @@ namespace BTQCDar.Controllers
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} has been rejected." });
         }
+        // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/All  — Admin: full list of all DARs
+        // ────────────────────────────────────────────────────────────────────
+        public IActionResult All(string? q, string? status)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return redirect;
 
+            // Admin or QMR (role=2) only
+            if (!session.IsAdmin && !session.IsMR)
+            {
+                TempData["Error"] = "Access denied.";
+                return RedirectToAction("Index", "Dashboards");
+            }
+
+            var list = GetAllDars(q, status);
+            ViewBag.Session = session;
+            ViewBag.Q = q ?? string.Empty;
+            ViewBag.Status = status ?? string.Empty;
+            return View(list);
+        }
         // ────────────────────────────────────────────────────────────────────
         // GET /Dar/History  — documents I have signed or approved
         // ────────────────────────────────────────────────────────────────────
@@ -842,7 +862,7 @@ namespace BTQCDar.Controllers
                 return Json(new { success = false, message = ex.Message });
             }
         }
-        // ────────────────────────────────────────────────────────────────────
+
         // GET /Dar/PendingCount  — returns pending count for current user
         // ────────────────────────────────────────────────────────────────────
         [HttpGet]
@@ -1274,6 +1294,49 @@ namespace BTQCDar.Controllers
             using var rdr = cmd.ExecuteReader();
             if (!rdr.Read()) return null;
             return MapDar(rdr);
+        }
+
+        private List<DarListItemModel> GetAllDars(string? q, string? statusFilter)
+        {
+            var list = new List<DarListItemModel>();
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
+
+            var sql = @"SELECT DarId, DarNo, DocumentNo, DocumentName, Purpose,
+                               RequestedByName, RequestedDate, Status
+                        FROM [dbo].[dar_Master]
+                        WHERE 1=1";
+
+            if (!string.IsNullOrWhiteSpace(q))
+                sql += @" AND (DarNo LIKE @q OR DocumentNo LIKE @q
+                               OR DocumentName LIKE @q OR RequestedByName LIKE @q)";
+            if (!string.IsNullOrWhiteSpace(statusFilter) && int.TryParse(statusFilter, out var st))
+                sql += " AND Status = @status";
+
+            sql += " ORDER BY CreatedAt DESC";
+
+            using var cmd = new SqlCommand(sql, conn);
+            if (!string.IsNullOrWhiteSpace(q))
+                cmd.Parameters.AddWithValue("@q", $"%{q}%");
+            if (!string.IsNullOrWhiteSpace(statusFilter) && int.TryParse(statusFilter, out var st2))
+                cmd.Parameters.AddWithValue("@status", st2);
+
+            using var rdr = cmd.ExecuteReader();
+            while (rdr.Read())
+            {
+                list.Add(new DarListItemModel
+                {
+                    DarId = (int)rdr["DarId"],
+                    DarNo = rdr["DarNo"].ToString()!,
+                    DocumentNo = rdr["DocumentNo"].ToString()!,
+                    DocumentName = rdr["DocumentName"].ToString()!,
+                    Purpose = ((DarPurpose)(int)rdr["Purpose"]).ToString(),
+                    RequestedBy = rdr["RequestedByName"].ToString()!,
+                    RequestedDate = (DateTime)rdr["RequestedDate"],
+                    Status = (DarStatus)(int)rdr["Status"],
+                });
+            }
+            return list;
         }
         private List<DarHistoryItemModel> GetHistoryList(UserSessionModel session)
         {

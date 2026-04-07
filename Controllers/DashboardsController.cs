@@ -47,11 +47,11 @@ namespace BTQCDar.Controllers
             
             /*
             // 2. SSO for Debug
-            //user = "BERNINATHAILAND\\yuttaphum.p";
-            //id = "123456789";
-            //email = "yuttaphum.p@berninathailand.com";
-            //fname = "Yuttaphum Phumisut";
-            //depart = "QC & QA & Safety";
+            user = "BERNINATHAILAND\\yuttaphum.p";
+            id = "123456789";
+            email = "yuttaphum.p@berninathailand.com";
+            fname = "Yuttaphum Phumisut";
+            depart = "QC & QA & Safety";
 
             //user = "BERNINATHAILAND\\Nanthawan.C";
             //id = "123456789";
@@ -65,11 +65,11 @@ namespace BTQCDar.Controllers
             //fname = "Attapol Jingmak";
             //depart = "Planning, Project & IT";
 
-            user = "BERNINATHAILAND\\supaporn.t";
-            id = "123456789";
-            email = "supaporn.t@berninathailand.com";
-            fname = "Supaporn Jaidee";
-            depart = "DCC";
+            //user = "BERNINATHAILAND\\supaporn.t";
+            //id = "123456789";
+            //email = "supaporn.t@berninathailand.com";
+            //fname = "Supaporn Jaidee";
+            //depart = "DCC";
 
             if (user != "")
             {
