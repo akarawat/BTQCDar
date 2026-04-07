@@ -340,6 +340,15 @@
                                     }
                                 </td>
                             </tr>
+                            @if (Model.MRAgree.HasValue && !string.IsNullOrEmpty(Model.Remarks))
+                            {
+                                <tr class="table-light">
+                                    <td class="ps-4 text-muted small border-0">QMR Remarks</td>
+                                    <td colspan="3" class="small fst-italic text-secondary border-0">
+                                        <i class="bi bi-chat-left-text me-1"></i>@Model.Remarks
+                                    </td>
+                                </tr>
+                            }
                             <tr>
                                 <td class="ps-4">DCC (role=1)</td>
                                 <td>@(Model.DCOSamAcc ?? "—")</td>
@@ -380,9 +389,9 @@
                             </tr>
                             @if (!string.IsNullOrEmpty(Model.DCORemarks))
                             {
-                                <tr>
-                                    <td class="ps-4 text-muted small">DCC Remarks</td>
-                                    <td colspan="3" class="small fst-italic text-secondary">
+                                <tr class="table-light">
+                                    <td class="ps-4 text-muted small border-0">DCC Remarks</td>
+                                    <td colspan="3" class="small fst-italic text-secondary border-0">
                                         <i class="bi bi-chat-left-text me-1"></i>@Model.DCORemarks
                                     </td>
                                 </tr>
@@ -398,7 +407,7 @@
     {
         <div class="col-12">
             <div class="alert alert-secondary small mb-0">
-                <i class="bi bi-chat-left-text me-1"></i><strong>Remarks:</strong> @Model.Remarks
+                <i class="bi bi-chat-left-text me-1"></i><strong>Workflow Remarks</strong> <span class="text-muted small">(Reviewer / Approver)</span><span class="ms-1">@Model.Remarks</span>
             </div>
         </div>
     }
