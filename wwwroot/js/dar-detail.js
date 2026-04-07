@@ -173,6 +173,75 @@ $(function () {
         setTimeout(function () { $banner.alert('close'); }, 3000);
     }
 
+    // ── Audit Log button → load from API and show modal ─────────────────
+    $('#btnAuditLog').on('click', function () {
+        var darNo = $(this).data('darno');
+        var $body = $('#auditModalBody');
+        var $modal = new bootstrap.Modal($('#auditModal')[0]);
+
+        $('#auditDarNo').text('— ' + darNo);
+        $body.html('<div class="text-center py-4 text-muted">' +
+            '<div class="spinner-border spinner-border-sm me-2"></div>Loading...</div>');
+        $modal.show();
+
+        $.getJSON('/Dar/AuditLog?darNo=' + encodeURIComponent(darNo))
+            .done(function (res) {
+                if (!res.success || !res.data || res.data.records.length === 0) {
+                    $body.html('<div class="text-center py-4 text-muted">' +
+                        '<i class="bi bi-inbox me-2"></i>No audit records found.</div>');
+                    return;
+                }
+
+                var records = res.data.records;
+                var html = '<div class="table-responsive">' +
+                    '<table class="table table-sm table-hover small mb-0">' +
+                    '<thead class="table-dark"><tr>' +
+                    '<th>#</th><th>Purpose</th><th>Signed By</th>' +
+                    '<th>Signed At</th><th>Algorithm</th><th>Status</th>' +
+                    '</tr></thead><tbody>';
+
+                records.forEach(function (r, i) {
+                    var signedAt = r.signedAt
+                        ? new Date(r.signedAt).toLocaleString('th-TH', { hour12: false })
+                        : '—';
+                    var user = r.signerFullName || r.signedByUser || '—';
+                    var status = r.isRevoked
+                        ? '<span class="badge bg-danger">Revoked</span>'
+                        : '<span class="badge bg-success">Valid</span>';
+                    var purpose = r.purpose || '—';
+
+                    html += '<tr>' +
+                        '<td class="text-muted">' + (i + 1) + '</td>' +
+                        '<td>' + $('<span>').text(purpose).html() + '</td>' +
+                        '<td>' + $('<span>').text(user).html() + '</td>' +
+                        '<td class="text-nowrap">' + signedAt + '</td>' +
+                        '<td><code class="small">' + (r.signatureType || '—') + '</code></td>' +
+                        '<td>' + status + '</td>' +
+                        '</tr>' +
+                        // Expanded row: cert + thumbprint + hash
+                        '<tr class="table-light">' +
+                        '<td></td>' +
+                        '<td colspan="5" class="py-1">' +
+                        '<span class="text-muted me-2">Cert:</span>' +
+                        $('<span>').text(r.signedByCert || '—').html() +
+                        ' &nbsp;|&nbsp; <span class="text-muted me-1">Thumbprint:</span>' +
+                        '<code class="small text-break">' + (r.certThumbprint || '—') + '</code>' +
+                        (r.remarks ? ' &nbsp;|&nbsp; <span class="text-muted me-1">Remarks:</span>' +
+                            $('<span>').text(r.remarks).html() : '') +
+                        '</td></tr>';
+                });
+
+                html += '</tbody></table></div>';
+                html += '<div class="px-3 py-2 border-top bg-light small text-muted">' +
+                    'Total: <strong>' + res.data.total + '</strong> record(s)</div>';
+                $body.html(html);
+            })
+            .fail(function () {
+                $body.html('<div class="text-center py-4 text-danger">' +
+                    '<i class="bi bi-exclamation-circle me-2"></i>' +
+                    'Failed to load audit log. Please try again.</div>');
+            });
+    });
     // ── Certificate badge click → show cert detail modal ────────────────
     $(document).on('click', '.cert-badge', function () {
         var $b = $(this);

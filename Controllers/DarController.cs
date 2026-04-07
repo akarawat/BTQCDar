@@ -691,6 +691,31 @@ namespace BTQCDar.Controllers
                 return Json(new { isAllowed = false });
             }
         }
+
+        // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/AuditLog?darNo=DAR-2026-00017
+        // Returns digital signature audit records from BTDigitalSign API
+        // ────────────────────────────────────────────────────────────────────
+        [HttpGet]
+        public async Task<IActionResult> AuditLog(string darNo)
+        {
+            var redirect = RequireLogin(out _);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+
+            try
+            {
+                var audit = await _sign.GetAuditAsync(darNo);
+                if (audit == null)
+                    return Json(new { success = false, message = "No audit records found." });
+
+                return Json(new { success = true, data = audit });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[AuditLog] {ex.Message}");
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
         // ────────────────────────────────────────────────────────────────────
         // GET /Dar/PendingCount  — returns pending count for current user
         // ────────────────────────────────────────────────────────────────────

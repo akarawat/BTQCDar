@@ -71,6 +71,10 @@
                 <i class="bi bi-pencil me-1"></i>Edit
             </a>
         }
+        <button class="btn btn-sm btn-outline-secondary" id="btnAuditLog"
+                data-darno="@Model.DarNo" title="Digital Signature Audit Log">
+            <i class="bi bi-clock-history me-1"></i>Audit Log
+        </button>
         <a href="/Dar/Index" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-arrow-left me-1"></i>Back
         </a>
@@ -453,7 +457,57 @@
         </div>
     </div>
 }
+<!-- Audit Log Modal -->
+<div class="modal fade" id="auditModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white py-2">
+                <h6 class="modal-title mb-0">
+                    <i class="bi bi-clock-history me-2"></i>Digital Signature Audit Log
+                    <span id="auditDarNo" class="ms-2 fw-normal opacity-75"></span>
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" id="auditModalBody">
+                <div class="text-center py-4 text-muted">
+                    <div class="spinner-border spinner-border-sm me-2"></div>Loading...
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <small class="text-muted me-auto">
+                    <i class="bi bi-info-circle me-1"></i>Source: BT Digital Signature System
+                </small>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
+<!-- Audit Log Modal -->
+<div class="modal fade" id="auditModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white py-2">
+                <h6 class="modal-title mb-0">
+                    <i class="bi bi-clock-history me-2"></i>Digital Signature Audit Log
+                    <span id="auditDarNo" class="ms-2 fw-normal opacity-75 small"></span>
+                </h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0" id="auditModalBody">
+                <div class="text-center py-4 text-muted">
+                    <div class="spinner-border spinner-border-sm me-2"></div>Loading...
+                </div>
+            </div>
+            <div class="modal-footer py-2">
+                <small class="text-muted me-auto">
+                    <i class="bi bi-shield-lock me-1"></i>Source: BT Digital Signature System
+                </small>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 <!-- Certificate Detail Modal -->
 <div class="modal fade" id="certModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
