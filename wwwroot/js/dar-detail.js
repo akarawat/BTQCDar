@@ -22,6 +22,8 @@ $(function () {
         // Reset modal state
         $('#actionRemarks').val('');
         $('#dcoDateWrap').hide();
+        $('#dcoRemarksWrap').hide();
+        $('#dcoRemarks').val('');
         $('#dcoDate').val('');
         $('#modalActionError').remove();
 
@@ -40,7 +42,7 @@ $(function () {
         };
         $('#modalTitle').text(titles[action] || 'Confirm Action');
 
-        var isPositive = ['sign-review', 'sign-approve', 'review', 'approve', 'mr-agree', 'dco-register'].indexOf(action) > -1;
+        var isPositive = ['sign-review', 'sign-approve', 'sign-mr-agree', 'sign-dco-register', 'review', 'approve', 'mr-agree', 'dco-register'].indexOf(action) > -1;
         $('#btnConfirmAction')
             .removeClass('btn-success btn-danger btn-primary')
             .addClass(isPositive ? 'btn-success' : 'btn-danger')
@@ -48,7 +50,7 @@ $(function () {
             .text('Confirm');
 
         // DCO date picker
-        if (action === 'dco-register') {
+        if (action === 'dco-register' || action === 'sign-dco-register') {
             $('#dcoDateWrap').show();
             $('#dcoRemarksWrap').show();
             $('#dcoDate').val(new Date().toISOString().split('T')[0]);
@@ -264,6 +266,7 @@ $(function () {
                     'Failed to load audit log. Please try again.</div>');
             });
     });
+
     // ── Certificate badge click → show cert detail modal ────────────────
     $(document).on('click', '.cert-badge', function () {
         var $b = $(this);
@@ -290,4 +293,3 @@ $(function () {
     });
 
 });
-

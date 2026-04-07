@@ -1252,7 +1252,7 @@ namespace BTQCDar.Controllers
             const string sql = @"
                 UPDATE [dbo].[dar_Master] SET
                     DCOSamAcc=@DCOSamAcc, DocRegisteredDate=@RegDate,
-                    Status=@Status, Remarks=COALESCE(@Remarks, Remarks),
+                    Status=@Status, DCORemarks=COALESCE(@DCORemarks, DCORemarks), 
                     UpdatedAt=GETDATE()
                 WHERE DarId=@DarId";
             using var cmd = new SqlCommand(sql, conn);
