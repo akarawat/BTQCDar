@@ -212,7 +212,44 @@ namespace BTQCDar.Models
             _ => "bg-secondary"
         };
     }
+    // ─── History list item ────────────────────────────────────────────────────
+    public class DarHistoryItemModel
+    {
+        public int DarId { get; set; }
+        public string DarNo { get; set; } = string.Empty;
+        public string DocumentNo { get; set; } = string.Empty;
+        public string DocumentName { get; set; } = string.Empty;
+        public string RequestedBy { get; set; } = string.Empty;
+        public DarStatus Status { get; set; }
 
+        // My role in this DAR
+        public string MyRole { get; set; } = string.Empty;  // Reviewer / Approver / QMR / DCC
+        public DateTime? MySignedAt { get; set; }                  // when I signed/approved
+        public bool IsSigned { get; set; }                  // true = digital sig, false = button
+
+        public string StatusLabel => Status switch
+        {
+            DarStatus.Draft => "Draft",
+            DarStatus.PendingApproval => "Pending Approval",
+            DarStatus.PendingMR => "Pending MR",
+            DarStatus.PendingDCO => "Pending DCO",
+            DarStatus.Completed => "Completed",
+            DarStatus.Rejected => "Rejected",
+            DarStatus.Cancelled => "Cancelled",
+            _ => "Unknown"
+        };
+        public string StatusBadgeClass => Status switch
+        {
+            DarStatus.Draft => "bg-secondary",
+            DarStatus.PendingApproval => "bg-warning text-dark",
+            DarStatus.PendingMR => "bg-info text-dark",
+            DarStatus.PendingDCO => "bg-primary",
+            DarStatus.Completed => "bg-success",
+            DarStatus.Rejected => "bg-danger",
+            DarStatus.Cancelled => "bg-dark",
+            _ => "bg-secondary"
+        };
+    }
     // ─── Approver lookup row (from dar_UserApprovalRoles JOIN dar_RoleConfig) ──
     public class DarApproverOptionModel
     {

@@ -1,0 +1,104 @@
+@model List<BTQCDar.Models.DarHistoryItemModel>
+@{
+    ViewData["Title"] = "My History";
+}
+
+<div class="d-flex align-items-center mt-3 mb-3 gap-2">
+    <h5 class="mb-0">
+        <i class="bi bi-clock-history me-1 text-secondary"></i>My History
+    </h5>
+    <small class="text-muted ms-1">— Documents I have signed or approved</small>
+    <a href="/Dar/Index" class="btn btn-sm btn-outline-secondary ms-auto">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 dar-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>DAR No.</th>
+                        <th>Document Name</th>
+                        <th>Requested By</th>
+                        <th class="text-center">My Role</th>
+                        <th>My Action Date</th>
+                        <th class="text-center">DAR Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="bi bi-inbox display-6 d-block mb-2 opacity-25"></i>
+                                No history yet.
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var item in Model)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@item.DarNo</td>
+                            <td>
+                                @item.DocumentName
+                                @if (!string.IsNullOrEmpty(item.DocumentNo))
+                                {
+                                    <small class="text-muted d-block">@item.DocumentNo</small>
+                                }
+                            </td>
+                            <td><small>@item.RequestedBy</small></td>
+                            <td class="text-center">
+                                @{
+                                    var (roleBg, roleIcon) = item.MyRole switch {
+                                        "Reviewer" => ("bg-info text-dark",    "bi-eye"),
+                                        "Approver" => ("bg-success",           "bi-check-circle"),
+                                        "QMR"      => ("bg-warning text-dark", "bi-shield-check"),
+                                        "DCC"      => ("bg-primary",           "bi-journal-check"),
+                                        _          => ("bg-secondary",         "bi-person")
+                                    };
+                                }
+                                <span class="badge @roleBg">
+                                    <i class="bi @roleIcon me-1"></i>@item.MyRole
+                                </span>
+                            </td>
+                            <td>
+                                @if (item.MySignedAt.HasValue)
+                                {
+                                    <span>@item.MySignedAt.Value.ToString("dd/MM/yyyy HH:mm")</span>
+                                    @if (item.IsSigned)
+                                    {
+                                        <small class="d-block text-success">
+                                            <i class="bi bi-shield-check me-1"></i>Digitally Signed
+                                        </small>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <span class="badge @item.StatusBadgeClass">@item.StatusLabel</span>
+                            </td>
+                            <td>
+                                <a href="/Dar/Detail/@item.DarId"
+                                   class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @if (Model.Any())
+    {
+        <div class="card-footer text-muted small text-end">
+            @Model.Count record(s)
+        </div>
+    }
+</div>

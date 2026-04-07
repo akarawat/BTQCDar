@@ -607,6 +607,19 @@ namespace BTQCDar.Controllers
         }
 
         // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/History  — documents I have signed or approved
+        // ────────────────────────────────────────────────────────────────────
+        public IActionResult History()
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return redirect;
+
+            var list = GetHistoryList(session);
+            ViewBag.Session = session;
+            return View(list);
+        }
+
+        // ────────────────────────────────────────────────────────────────────
         // GET /Dar/Pending  — inbox for approver / MR / DCO
         // ────────────────────────────────────────────────────────────────────
         public IActionResult Pending()
@@ -1262,7 +1275,83 @@ namespace BTQCDar.Controllers
             if (!rdr.Read()) return null;
             return MapDar(rdr);
         }
+        private List<DarHistoryItemModel> GetHistoryList(UserSessionModel session)
+        {
+            var list = new List<DarHistoryItemModel>();
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
 
+            // Union 4 roles — each with my action date and digital sign flag
+            const string sql = @"
+                -- Reviewer
+                SELECT DarId, DarNo, DocumentNo, DocumentName,
+                       RequestedByName, Status,
+                       'Reviewer'              AS MyRole,
+                       COALESCE(ReviewerSignedAt, ReviewedDate) AS MySignedAt,
+                       CASE WHEN ReviewerSignedAt IS NOT NULL THEN 1 ELSE 0 END AS IsSigned
+                FROM [dbo].[dar_Master]
+                WHERE LOWER(ReviewerSamAcc) = LOWER(@sam)
+                  AND (ReviewedDate IS NOT NULL OR ReviewerSignedAt IS NOT NULL)
+
+                UNION ALL
+
+                -- Approver
+                SELECT DarId, DarNo, DocumentNo, DocumentName,
+                       RequestedByName, Status,
+                       'Approver'              AS MyRole,
+                       COALESCE(ApproverSignedAt, ApprovedDate) AS MySignedAt,
+                       CASE WHEN ApproverSignedAt IS NOT NULL THEN 1 ELSE 0 END AS IsSigned
+                FROM [dbo].[dar_Master]
+                WHERE LOWER(ApproverSamAcc) = LOWER(@sam)
+                  AND (ApprovedDate IS NOT NULL OR ApproverSignedAt IS NOT NULL)
+
+                UNION ALL
+
+                -- QMR
+                SELECT DarId, DarNo, DocumentNo, DocumentName,
+                       RequestedByName, Status,
+                       'QMR'                   AS MyRole,
+                       COALESCE(MRSignedAt, MRDate) AS MySignedAt,
+                       CASE WHEN MRSignedAt IS NOT NULL THEN 1 ELSE 0 END AS IsSigned
+                FROM [dbo].[dar_Master]
+                WHERE LOWER(MRSamAcc) = LOWER(@sam)
+                  AND MRAgree = 1
+
+                UNION ALL
+
+                -- DCC
+                SELECT DarId, DarNo, DocumentNo, DocumentName,
+                       RequestedByName, Status,
+                       'DCC'                   AS MyRole,
+                       COALESCE(DCOSignedAt, DocRegisteredDate) AS MySignedAt,
+                       CASE WHEN DCOSignedAt IS NOT NULL THEN 1 ELSE 0 END AS IsSigned
+                FROM [dbo].[dar_Master]
+                WHERE LOWER(DCOSamAcc) = LOWER(@sam)
+                  AND DocRegisteredDate IS NOT NULL
+
+                ORDER BY MySignedAt DESC";
+
+            using var cmd = new SqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@sam", session.SamAcc);
+
+            using var rdr = cmd.ExecuteReader();
+            while (rdr.Read())
+            {
+                list.Add(new DarHistoryItemModel
+                {
+                    DarId = (int)rdr["DarId"],
+                    DarNo = rdr["DarNo"].ToString()!,
+                    DocumentNo = rdr["DocumentNo"].ToString()!,
+                    DocumentName = rdr["DocumentName"].ToString()!,
+                    RequestedBy = rdr["RequestedByName"].ToString()!,
+                    Status = (DarStatus)(int)rdr["Status"],
+                    MyRole = rdr["MyRole"].ToString()!,
+                    MySignedAt = rdr["MySignedAt"] as DateTime?,
+                    IsSigned = (int)rdr["IsSigned"] == 1,
+                });
+            }
+            return list;
+        }
         private List<DarListItemModel> GetDarList(UserSessionModel session)
         {
             var list = new List<DarListItemModel>();
