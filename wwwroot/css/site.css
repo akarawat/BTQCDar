@@ -1,11 +1,12 @@
 /* ════════════════════════════════════════════════════════════
    site.css — BTQCDar custom styles
-   Brand color: Bernina Red #d42b2b
-   ════════════════════════════════════════════════════════════ */
+   Brand color: QC Blue #1a56db
+════════════════════════════════════════════════════════════ */
 
 :root {
-    --bt-red:   #d42b2b;
-    --bt-dark:  #1a1a1a;
+    --bt-blue: #1a56db;
+    --bt-blue2: #1e40af; /* darker for hover */
+    --bt-dark: #1a1a1a;
     --bt-light: #f8f9fa;
 }
 
@@ -22,36 +23,107 @@ main.container-fluid {
     max-width: 1400px;
 }
 
-.navbar.bg-danger { background-color: var(--bt-red) !important; }
+/* ── Navbar ─────────────────────────────────────────────── */
+.navbar.bg-dar {
+    background-color: var(--bt-blue) !important;
+}
+/* Override Bootstrap bg-danger on navbar */
+.navbar.bg-danger {
+    background-color: var(--bt-blue) !important;
+}
 
+/* ── Card headers ────────────────────────────────────────── */
 .card {
     border-radius: 0.5rem;
     border: 1px solid #e0e0e0;
 }
+
 .card-header {
     background-color: #f0f0f0;
     border-bottom: 1px solid #ddd;
     font-size: 0.85rem;
     padding: 0.6rem 1rem;
 }
-.card-header.bg-danger { background-color: var(--bt-red) !important; }
 
-.table th { white-space: nowrap; }
-.table > :not(caption) > * > * { vertical-align: middle; }
+    .card-header.bg-dar,
+    .card-header.bg-danger {
+        background-color: var(--bt-blue) !important;
+        color: #fff !important;
+    }
 
-.badge { font-weight: 500; letter-spacing: 0.3px; }
+/* ── Brand button — replaces btn-danger for primary actions ─ */
+.btn-dar,
+.btn-danger:not([data-action="reject"]):not([data-action="mr-disagree"]) {
+    background-color: var(--bt-blue) !important;
+    border-color: var(--bt-blue) !important;
+    color: #fff !important;
+}
 
-.form-label.fw-semibold { color: #333; }
+    .btn-dar:hover,
+    .btn-danger:not([data-action="reject"]):not([data-action="mr-disagree"]):hover {
+        background-color: var(--bt-blue2) !important;
+        border-color: var(--bt-blue2) !important;
+    }
 
+/* ── Brand text/icon ─────────────────────────────────────── */
+.text-dar {
+    color: var(--bt-blue) !important;
+}
+
+/* ── Email HTML template color (server-side) ─────────────── */
+/* Note: email HTML uses inline styles — update SendMailController.cs too */
+
+/* ── Tables ─────────────────────────────────────────────── */
+.table th {
+    white-space: nowrap;
+}
+
+.table > :not(caption) > * > * {
+    vertical-align: middle;
+}
+
+/* ── Badges ─────────────────────────────────────────────── */
+.badge {
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+/* ── Form labels ─────────────────────────────────────────── */
+.form-label.fw-semibold {
+    color: #333;
+}
+
+/* ── Code ────────────────────────────────────────────────── */
 code {
-    color: var(--bt-red);
-    background: #fff0f0;
+    color: var(--bt-blue);
+    background: #eff6ff;
     padding: 0.1em 0.4em;
     border-radius: 4px;
     font-size: 0.85em;
 }
 
+/* ── Status pills ────────────────────────────────────────── */
+.status-pill {
+    font-size: 0.78rem;
+}
+
+/* ── Hover lift (dashboard cards) ───────────────────────── */
+.hover-lift {
+    transition: transform 0.15s;
+}
+
+    .hover-lift:hover {
+        transform: translateY(-2px);
+    }
+
+/* ── Print ───────────────────────────────────────────────── */
 @media print {
-    .navbar, footer, .btn, [data-action] { display: none !important; }
-    .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+    .navbar, footer, .btn, [data-action] {
+        display: none !important;
+    }
+
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+    }
 }

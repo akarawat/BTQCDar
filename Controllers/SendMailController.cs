@@ -172,12 +172,12 @@ namespace BTQCDar.Controllers
 <body style='margin:0;padding:0;background:#f4f6f9;font-family:Arial,sans-serif;'>
 <table width='100%' cellpadding='0' cellspacing='0'><tr><td align='center' style='padding:32px 16px;'>
 <table width='620' cellpadding='0' cellspacing='0' style='background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.1);'>
-<tr><td style='background:#d42b2b;padding:22px 32px;'><span style='color:#fff;font-size:20px;font-weight:bold;'>&#128196; Bernina Thailand — DAR System</span></td></tr>
+<tr><td style='background:#1a56db;padding:22px 32px;'><span style='color:#fff;font-size:20px;font-weight:bold;'>&#128196; Bernina Thailand — DAR System</span></td></tr>
 <tr><td style='padding:28px 32px 24px;'>
   <h2 style='margin:0 0 12px;color:#1a1a1a;font-size:19px;'>{title}</h2>
   <span style='display:inline-block;padding:4px 16px;border-radius:20px;background:{colors.GetValueOrDefault(badge.color, "#6c757d")};color:#fff;font-size:12px;font-weight:bold;margin-bottom:22px;'>{badge.label}</span>
   <table width='100%' cellpadding='0' cellspacing='0' style='border:1px solid #e8e8e8;border-radius:6px;border-collapse:collapse;margin-bottom:26px;'>{rowHtml}</table>
-  <a href='{actionUrl}' style='display:inline-block;padding:12px 30px;background:#d42b2b;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;'>{actionLabel} &#8594;</a>
+  <a href='{actionUrl}' style='display:inline-block;padding:12px 30px;background:#1a56db;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;font-size:14px;'>{actionLabel} &#8594;</a>
 </td></tr>
 <tr><td style='padding:14px 32px;border-top:1px solid #f0f0f0;color:#aaa;font-size:11px;line-height:1.6;'>
   {System.Net.WebUtility.HtmlEncode(footer)}<br>This is an automated notification from BTQCDar. Please do not reply.
