@@ -127,6 +127,7 @@ namespace BTQCDar.Models
         // DCO section
         public string?   DCOSamAcc         { get; set; }
         public DateTime? DocRegisteredDate { get; set; }
+        public string? DCORemarks { get; set; }
 
         // Workflow status
         public DarStatus Status   { get; set; } = DarStatus.Draft;

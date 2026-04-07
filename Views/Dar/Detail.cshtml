@@ -354,6 +354,15 @@
                                     }
                                 </td>
                             </tr>
+                            @if (!string.IsNullOrEmpty(Model.DCORemarks))
+                            {
+                                <tr>
+                                    <td class="ps-4 text-muted small">DCC Remarks</td>
+                                    <td colspan="3" class="small fst-italic text-secondary">
+                                        <i class="bi bi-chat-left-text me-1"></i>@Model.DCORemarks
+                                    </td>
+                                </tr>
+                            }
                         </tbody>
                     </table>
                 </div>
@@ -445,6 +454,13 @@
                         <label class="form-label small fw-semibold">Doc Registered Date <span class="text-danger">*</span></label>
                         <input type="date" id="dcoDate" class="form-control form-control-sm">
                     </div>
+                    <div id="dcoRemarksWrap" class="mb-3" style="display:none">
+                        <label class="form-label small fw-semibold">
+                            <i class="bi bi-journal-text me-1"></i>DCC Remarks
+                        </label>
+                        <textarea id="dcoRemarks" class="form-control form-control-sm" rows="3"
+                              placeholder="Enter DCC registration remarks..."></textarea>
+                    </div>
                     <label class="form-label small fw-semibold">Remarks (optional)</label>
                     <textarea id="actionRemarks" class="form-control form-control-sm" rows="3"
                           placeholder="Enter remarks or reason..."></textarea>
@@ -457,6 +473,7 @@
         </div>
     </div>
 }
+
 <!-- Audit Log Modal -->
 <div class="modal fade" id="auditModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
@@ -508,6 +525,7 @@
         </div>
     </div>
 </div>
+
 <!-- Certificate Detail Modal -->
 <div class="modal fade" id="certModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -550,7 +568,7 @@
             <div class="modal-footer py-2 bg-light">
                 <small class="text-muted me-auto">
                     <i class="bi bi-info-circle me-1"></i>
-                    Signed via Bernina Thailand Co., Ltd. Digital Signature System
+                    Signed via BT Digital Signature System
                 </small>
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
             </div>

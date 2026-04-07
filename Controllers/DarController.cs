@@ -429,7 +429,7 @@ namespace BTQCDar.Controllers
         // POST /Dar/DCORegister
         // ────────────────────────────────────────────────────────────────────
         [HttpPost]
-        public IActionResult DCORegister(int id, DateTime registeredDate, string? remarks)
+        public IActionResult DCORegister(int id, DateTime registeredDate, string? dcoRemarks, string? remarks)
         {
             var redirect = RequireLogin(out var session);
             if (redirect != null) return Json(new { success = false, message = "Not logged in." });
@@ -446,7 +446,7 @@ namespace BTQCDar.Controllers
             if (dar.Status != DarStatus.PendingDCO)
                 return Json(new { success = false, message = "DAR is not awaiting DCO registration." });
 
-            UpdateDCO(id, session.SamAcc, registeredDate, DarStatus.Completed, remarks);
+            UpdateDCO(id, session.SamAcc, registeredDate, DarStatus.Completed, dcoRemarks);
 
             // Notify requester — DAR fully completed
             _ = _mailer.NotifyCompletedAsync(
@@ -1119,7 +1119,7 @@ namespace BTQCDar.Controllers
         }
 
         private void UpdateDCO(int darId, string dcoSam, DateTime regDate,
-                               DarStatus nextStatus, string? remarks)
+                               DarStatus nextStatus, string? dcoRemarks)
         {
             using var conn = _db.GetQCDarConnection();
             conn.Open();
@@ -1134,7 +1134,7 @@ namespace BTQCDar.Controllers
             cmd.Parameters.AddWithValue("@DCOSamAcc", dcoSam);
             cmd.Parameters.AddWithValue("@RegDate", regDate);
             cmd.Parameters.AddWithValue("@Status", (int)nextStatus);
-            cmd.Parameters.AddWithValue("@Remarks", (object?)remarks ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@DCORemarks", (object?)dcoRemarks ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
 

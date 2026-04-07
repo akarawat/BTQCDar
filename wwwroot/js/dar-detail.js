@@ -48,6 +48,7 @@ $(function () {
         // DCO date picker
         if (action === 'dco-register') {
             $('#dcoDateWrap').show();
+            $('#dcoRemarksWrap').show();
             $('#dcoDate').val(new Date().toISOString().split('T')[0]);
         }
 
@@ -116,7 +117,11 @@ $(function () {
                 var dcoDate = $('#dcoDate').val();
                 if (!dcoDate) { showModalError('Please enter the Doc Registered Date.'); return; }
                 url = '/Dar/DCORegister';
-                postData = { id: id, registeredDate: dcoDate, remarks: remarks };
+                postData = {
+                    id: id, registeredDate: dcoDate,
+                    dcoRemarks: $('#dcoRemarks').val().trim(),
+                    remarks: remarks
+                };
                 break;
             default: return;
         }
@@ -268,3 +273,4 @@ $(function () {
     });
 
 });
+
