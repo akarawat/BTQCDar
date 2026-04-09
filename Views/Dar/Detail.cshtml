@@ -202,13 +202,13 @@
                             <tr>
                                 <td>Requested by</td>
                                 <td>@Model.RequestedByName</td>
-                                <td>@Model.RequestedDate.ToString("dd/MM/yyyy")</td>
+                                <td>@Model.RequestedDate.ToString("dd/MM/yyyy HH:mm")</td>
                                 <td><span class="badge bg-success">Done</span></td>
                             </tr>
                             <tr>
                                 <td>Reviewer</td>
                                 <td>@(string.IsNullOrEmpty(Model.ReviewerName) ? (Model.ReviewerSamAcc ?? "—") : Model.ReviewerName)</td>
-                                <td>@(Model.ReviewerSignedAt?.ToString("dd/MM/yyyy HH:mm") ?? Model.ReviewedDate?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td>@(Model.ReviewerSignedAt?.ToString("dd/MM/yyyy HH:mm") ?? Model.ReviewedDate?.ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
                                 <td>
                                     @if (Model.ReviewerSignedAt.HasValue)
                                     {
@@ -243,7 +243,7 @@
                             <tr>
                                 <td>Approver</td>
                                 <td>@(string.IsNullOrEmpty(Model.ApproverName) ? (Model.ApproverSamAcc ?? "—") : Model.ApproverName)</td>
-                                <td>@(Model.ApprovedDate?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                <td>@(Model.ApprovedDate?.ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
                                 <td>
                                     @if (Model.ApproverSignedAt.HasValue)
                                     {
