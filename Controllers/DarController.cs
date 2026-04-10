@@ -603,39 +603,6 @@ namespace BTQCDar.Controllers
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} has been rejected." });
         }
-        // ────────────────────────────────────────────────────────────────────
-        // GET /Dar/All  — Admin: full list of all DARs
-        // ────────────────────────────────────────────────────────────────────
-        public IActionResult All(string? q, string? status)
-        {
-            var redirect = RequireLogin(out var session);
-            if (redirect != null) return redirect;
-
-            // Admin or QMR (role=2) only
-            if (!session.IsAdmin && !session.IsMR)
-            {
-                TempData["Error"] = "Access denied.";
-                return RedirectToAction("Index", "Dashboards");
-            }
-
-            var list = GetAllDars(q, status);
-            ViewBag.Session = session;
-            ViewBag.Q = q ?? string.Empty;
-            ViewBag.Status = status ?? string.Empty;
-            return View(list);
-        }
-        // ────────────────────────────────────────────────────────────────────
-        // GET /Dar/History  — documents I have signed or approved
-        // ────────────────────────────────────────────────────────────────────
-        public IActionResult History()
-        {
-            var redirect = RequireLogin(out var session);
-            if (redirect != null) return redirect;
-
-            var list = GetHistoryList(session);
-            ViewBag.Session = session;
-            return View(list);
-        }
 
         // ────────────────────────────────────────────────────────────────────
         // GET /Dar/Pending  — inbox for approver / MR / DCO
@@ -837,7 +804,7 @@ namespace BTQCDar.Controllers
         }
 
         // ────────────────────────────────────────────────────────────────────
-        // GET /Dar/AuditLog?darNo=DAR-2026-00017
+        // GET /api/audit/reference/DAR-2026-00018
         // Returns digital signature audit records from BTDigitalSign API
         // ────────────────────────────────────────────────────────────────────
         [HttpGet]
@@ -851,14 +818,97 @@ namespace BTQCDar.Controllers
                 var audit = await _sign.GetAuditAsync(darNo);
                 if (audit == null)
                     return Json(new { success = false, message = "No audit records found." });
+                // signedByUser from API = machine account (BTWEB04$), not the real user.
+                // Enrich with actual names from dar_Master using purpose field to identify role.
+                var dar = GetDarByNo(darNo);
+                var signerMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (dar != null)
+                {
+                    if (!string.IsNullOrEmpty(dar.ReviewerSamAcc))
+                        signerMap["Reviewer"] = $"{dar.ReviewerName} ({dar.ReviewerSamAcc})";
+                    if (!string.IsNullOrEmpty(dar.ApproverSamAcc))
+                        signerMap["Approver"] = $"{dar.ApproverName} ({dar.ApproverSamAcc})";
+                    if (!string.IsNullOrEmpty(dar.MRSamAcc))
+                        signerMap["QMR"] = dar.MRSamAcc;
+                    if (!string.IsNullOrEmpty(dar.DCOSamAcc))
+                        signerMap["DCC"] = dar.DCOSamAcc;
+                }
 
-                return Json(new { success = true, data = audit });
+                var enriched = audit.Records.Select(r =>
+                {
+                    var displayName = r.SignedByUser; // fallback
+                    var purpose = r.Purpose ?? string.Empty;
+                    foreach (var kv in signerMap)
+                        if (purpose.Contains(kv.Key, StringComparison.OrdinalIgnoreCase))
+                        { displayName = kv.Value; break; }
+
+                    return new
+                    {
+                        r.Id,
+                        r.ReferenceId,
+                        SignedByUser = displayName,
+                        r.SignerFullName,
+                        r.SignerRole,
+                        r.SignedByCert,
+                        r.CertThumbprint,
+                        r.CertExpiry,
+                        r.SignedAt,
+                        r.DataHash,
+                        r.SignatureType,
+                        r.Purpose,
+                        r.Department,
+                        r.Remarks,
+                        r.IsRevoked,
+                        r.RevokedAt,
+                        r.RevocationReason
+                    };
+                }).ToList();
+
+                return Json(new
+                {
+                    success = true,
+                    data = new { audit.ReferenceId, Records = enriched, audit.Total }
+                });
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[AuditLog] {ex.Message}");
                 return Json(new { success = false, message = ex.Message });
             }
+        }
+        // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/All  — Admin: full list of all DARs
+        // ────────────────────────────────────────────────────────────────────
+        public IActionResult All(string? q, string? status)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return redirect;
+
+            // Admin or QMR (role=2) only
+            if (!session.IsAdmin && !session.IsMR)
+            {
+                TempData["Error"] = "Access denied.";
+                return RedirectToAction("Index", "Dashboards");
+            }
+
+            var list = GetAllDars(q, status);
+            ViewBag.Session = session;
+            ViewBag.Q = q ?? string.Empty;
+            ViewBag.Status = status ?? string.Empty;
+            return View(list);
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/History  — documents I have signed or approved
+        // ────────────────────────────────────────────────────────────────────
+        public IActionResult History()
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return redirect;
+
+            var list = GetHistoryList(session);
+            ViewBag.Session = session;
+            return View(list);
         }
 
         // GET /Dar/PendingCount  — returns pending count for current user
@@ -1281,7 +1331,16 @@ namespace BTQCDar.Controllers
             cmd.Parameters.AddWithValue("@DCORemarks", (object?)dcoRemarks ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
-
+        private DarMasterModel? GetDarByNo(string darNo)
+        {
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
+            using var cmd = new SqlCommand(
+                "SELECT * FROM [dbo].[dar_Master] WHERE DarNo=@darNo", conn);
+            cmd.Parameters.AddWithValue("@darNo", darNo);
+            using var rdr = cmd.ExecuteReader();
+            return rdr.Read() ? MapDar(rdr) : null;
+        }
         private DarMasterModel? GetDarById(int id)
         {
             using var conn = _db.GetQCDarConnection();
