@@ -305,6 +305,7 @@ namespace BTQCDar.Models
     // ─── AD User (for Admin page - from usp_GetAllUserFromAD) ─────────────────
     public class ADUserModel
     {
+        public int? Id { get; set; }
         public string SamAcc { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;

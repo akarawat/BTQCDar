@@ -43,6 +43,7 @@ namespace BTQCDar.Controllers
                 {
                     list.Add(new ADUserModel
                     {
+                        Id            = rdr["Id"] != DBNull.Value ? (int)rdr["Id"] : null,
                         SamAcc        = rdr["SamAcc"].ToString()        ?? string.Empty,
                         Email         = rdr["Email"].ToString()         ?? string.Empty,
                         FullName      = rdr["FullName"].ToString()      ?? string.Empty,

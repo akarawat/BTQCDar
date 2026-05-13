@@ -129,6 +129,7 @@ $(function () {
         // Delete button → remove role
         $body.find('button.btn-outline-danger').on('click', function () {
             var u = $(this).data('user');
+            console.log(u);
             if (!confirm('Remove role from ' + (u.fullName || u.samAcc) + '?')) return;
 
             $.post('/Admin/DeleteUserRole', {
