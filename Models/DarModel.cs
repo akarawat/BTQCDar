@@ -212,6 +212,8 @@ namespace BTQCDar.Models
             _ => "bg-secondary"
         };
     }
+
+
     // ─── History list item ────────────────────────────────────────────────────
     public class DarHistoryItemModel
     {
@@ -305,7 +307,6 @@ namespace BTQCDar.Models
     // ─── AD User (for Admin page - from usp_GetAllUserFromAD) ─────────────────
     public class ADUserModel
     {
-        public int? Id { get; set; }
         public string SamAcc { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
@@ -318,4 +319,22 @@ namespace BTQCDar.Models
         public string RoleName { get; set; } = string.Empty;
     }
 
+}
+namespace BTQCDar.Models
+{
+    // ─── Email Log (audit trail) ──────────────────────────────────────────────
+    public class EmailLogModel
+    {
+        public int LogId { get; set; }
+        public string? DarNo { get; set; }
+        public string ToEmail { get; set; } = string.Empty;
+        public string? OriginalTo { get; set; }
+        public string Subject { get; set; } = string.Empty;
+        public bool IsSuccess { get; set; }
+        public int? StatusCode { get; set; }
+        public string? ResponseBody { get; set; }
+        public string? ErrorMessage { get; set; }
+        public bool IsDebugMode { get; set; }
+        public DateTime SentAt { get; set; }
+    }
 }

@@ -2,12 +2,16 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using Microsoft.Data.SqlClient;
+using BTQCDar.Services;
 
 namespace BTQCDar.Controllers
 {
     public class SendMailController : BaseController
     {
         private readonly IConfiguration _config;
+        private readonly IDbService _db;
 
         // Read from appsettings.json — same keys as the working MailSenderMessage project
         private string MailApiUrl => _config["TBCorApiServices:EmailSender"] ?? string.Empty;
@@ -18,9 +22,10 @@ namespace BTQCDar.Controllers
         private bool IsDebug => _config.GetValue<bool>("MailSettings:DebugMode", false);
         private string DebugEmail => _config["MailSettings:DebugEmail"] ?? string.Empty;
 
-        public SendMailController(IConfiguration config)
+        public SendMailController(IConfiguration config, IDbService db)
         {
             _config = config;
+            _db = db;
         }
 
         // ── Core send — mirrors the working MailSenderMessage exactly ─────────
@@ -31,6 +36,8 @@ namespace BTQCDar.Controllers
             if (string.IsNullOrWhiteSpace(MailApiUrl))
             {
                 Console.Error.WriteLine("[SendMail] TBCorApiServices:EmailSender is not configured.");
+                LogEmail(toEmail, toEmail, subject, false, null, null,
+                         "TBCorApiServices:EmailSender is not configured.", IsDebug);
                 return false;
             }
 
@@ -80,12 +87,58 @@ namespace BTQCDar.Controllers
                 if (!response.IsSuccessStatusCode)
                     Console.Error.WriteLine($"[SendMail] FAILED {(int)response.StatusCode} to {finalTo}");
 
+                LogEmail(finalTo, toEmail, finalSubject, response.IsSuccessStatusCode,
+                         (int)response.StatusCode,
+                         body.Length > 4000 ? body.Substring(0, 4000) : body,
+                         null, IsDebug);
+
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[SendMail] Exception → {finalTo}: {ex.Message}");
+                LogEmail(finalTo, toEmail, finalSubject, false, null, null, ex.Message, IsDebug);
                 return false;
+            }
+        }
+
+        // ── Persist to dar_EmailLog (audit trail) ───────────────────────────────
+        private void LogEmail(string toEmail, string originalTo, string subject,
+                              bool isSuccess, int? statusCode, string? responseBody,
+                              string? errorMessage, bool isDebugMode)
+        {
+            try
+            {
+                // Extract DAR No. from subject, e.g. "[DAR] ... — DAR-2026-00020"
+                string? darNo = null;
+                var m = Regex.Match(subject, @"DAR-\d{4}-\d+");
+                if (m.Success) darNo = m.Value;
+
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+                const string sql = @"
+                    INSERT INTO [dbo].[dar_EmailLog]
+                        (DarNo, ToEmail, OriginalTo, Subject, IsSuccess,
+                         StatusCode, ResponseBody, ErrorMessage, IsDebugMode, SentAt)
+                    VALUES
+                        (@DarNo, @ToEmail, @OriginalTo, @Subject, @IsSuccess,
+                         @StatusCode, @ResponseBody, @ErrorMessage, @IsDebugMode, GETDATE())";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@DarNo", (object?)darNo ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ToEmail", toEmail);
+                cmd.Parameters.AddWithValue("@OriginalTo", originalTo);
+                cmd.Parameters.AddWithValue("@Subject", subject);
+                cmd.Parameters.AddWithValue("@IsSuccess", isSuccess);
+                cmd.Parameters.AddWithValue("@StatusCode", (object?)statusCode ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ResponseBody", (object?)responseBody ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@ErrorMessage", (object?)errorMessage ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@IsDebugMode", isDebugMode);
+                cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex)
+            {
+                // Logging must never break the email flow
+                Console.Error.WriteLine($"[SendMail] LogEmail failed: {ex.Message}");
             }
         }
 

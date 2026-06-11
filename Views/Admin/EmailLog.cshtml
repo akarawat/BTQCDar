@@ -1,0 +1,252 @@
+@model List<BTQCDar.Models.EmailLogModel>
+@{
+    ViewData["Title"] = "Email Log";
+    var darNo  = ViewBag.DarNo  as string ?? string.Empty;
+    var result = ViewBag.Result as string ?? string.Empty;
+    int page       = ViewBag.Page;
+    int totalPages = ViewBag.TotalPages;
+    int total      = ViewBag.Total;
+}
+
+<div class="d-flex align-items-center mt-3 mb-3 gap-2 flex-wrap">
+    <h5 class="mb-0">
+        <i class="bi bi-envelope-paper me-1 text-dar"></i>Email Log
+        <span class="badge bg-warning text-dark ms-1" style="font-size:0.65rem;">Admin</span>
+    </h5>
+    <span class="text-muted small ms-1">— @total record(s)</span>
+</div>
+
+<!-- Filter bar -->
+<form method="get" action="/Admin/EmailLog" class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-md-4">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="darNo" value="@darNo"
+                           class="form-control border-start-0"
+                           placeholder="Search DAR No. e.g. DAR-2026-00020">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select name="result" class="form-select form-select-sm">
+                    @{
+                        var resultOptions = new[] {
+                            new { Val = "",        Label = "All Results" },
+                            new { Val = "success", Label = "✅ Success" },
+                            new { Val = "failed",  Label = "❌ Failed" },
+                        };
+                    }
+                    @foreach (var opt in resultOptions)
+                    {
+                        if (result == opt.Val)
+                        {
+                            <option value="@opt.Val" selected="selected">@opt.Label</option>
+                        }
+                        else
+                        {
+                            <option value="@opt.Val">@opt.Label</option>
+                        }
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="bi bi-funnel me-1"></i>Filter
+                </button>
+                <a href="/Admin/EmailLog" class="btn btn-outline-secondary btn-sm ms-1">
+                    <i class="bi bi-x-circle me-1"></i>Clear
+                </a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<!-- Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th class="ps-3">Sent At</th>
+                        <th>DAR No.</th>
+                        <th>To</th>
+                        <th>Subject</th>
+                        <th class="text-center">Debug</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="bi bi-inbox display-6 d-block mb-2 opacity-25"></i>
+                                No email logs found.
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var log in Model)
+                    {
+                        <tr>
+                            <td class="ps-3 text-nowrap small">@log.SentAt.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                            <td class="fw-semibold">
+                                @if (!string.IsNullOrEmpty(log.DarNo))
+                                {
+                                    <span>@log.DarNo</span>
+                                }
+                                else { <span class="text-muted">—</span> }
+                            </td>
+                            <td>
+                                <small>@log.ToEmail</small>
+                                @if (log.IsDebugMode && log.OriginalTo != log.ToEmail)
+                                {
+                                    <small class="d-block text-muted">
+                                        <i class="bi bi-arrow-return-right"></i> original: @log.OriginalTo
+                                    </small>
+                                }
+                            </td>
+                            <td><small>@log.Subject</small></td>
+                            <td class="text-center">
+                                @if (log.IsDebugMode)
+                                { <span class="badge bg-secondary">DEBUG</span> }
+                                else { <span class="text-muted small">—</span> }
+                            </td>
+                            <td class="text-center">
+                                @if (log.IsSuccess)
+                                {
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-circle me-1"></i>@log.StatusCode
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger" title="@(log.ErrorMessage ?? log.ResponseBody)">
+                                        <i class="bi bi-x-circle me-1"></i>@(log.StatusCode?.ToString() ?? "Error")
+                                    </span>
+                                }
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-outline-secondary py-0"
+                                        data-bs-toggle="modal" data-bs-target="#logDetailModal"
+                                        data-subject="@log.Subject"
+                                        data-to="@log.ToEmail"
+                                        data-darno="@log.DarNo"
+                                        data-sentat="@log.SentAt.ToString("dd/MM/yyyy HH:mm:ss")"
+                                        data-success="@log.IsSuccess.ToString().ToLower()"
+                                        data-status="@log.StatusCode"
+                                        data-response="@log.ResponseBody"
+                                        data-error="@log.ErrorMessage"
+                                        data-debug="@log.IsDebugMode.ToString().ToLower()">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <div class="card-footer bg-light py-2 d-flex justify-content-between align-items-center">
+            <small class="text-muted">Page @@page of @totalPages</small>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    @{
+                        var prevDisabled = page <= 1 ? "disabled" : "";
+                        var nextDisabled = page >= totalPages ? "disabled" : "";
+                    }
+                    <li class="page-item @prevDisabled">
+                        <a class="page-link" href="?darNo=@darNo&result=@result&page=@(page-1)">Previous</a>
+                    </li>
+                    <li class="page-item @nextDisabled">
+                        <a class="page-link" href="?darNo=@darNo&result=@result&page=@(page+1)">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    }
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="logDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-dar text-white py-2">
+                <h6 class="modal-title mb-0"><i class="bi bi-envelope me-2"></i>Email Log Detail</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <table class="table table-sm table-borderless mb-0 small">
+                    <tbody>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2" style="width:140px">Sent At</td>
+                            <td class="py-2" id="logSentAt"></td>
+                        </tr>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2">DAR No.</td>
+                            <td class="py-2" id="logDarNo"></td>
+                        </tr>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2">To</td>
+                            <td class="py-2" id="logTo"></td>
+                        </tr>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2">Subject</td>
+                            <td class="py-2" id="logSubject"></td>
+                        </tr>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2">Result</td>
+                            <td class="py-2" id="logResult"></td>
+                        </tr>
+                        <tr class="border-bottom">
+                            <td class="text-muted fw-semibold ps-3 py-2">Mode</td>
+                            <td class="py-2" id="logMode"></td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted fw-semibold ps-3 py-2 align-top">Response /<br/>Error</td>
+                            <td class="py-2">
+                                <pre class="small bg-light p-2 rounded mb-0" id="logResponse"
+                                     style="max-height:250px;overflow:auto;white-space:pre-wrap;"></pre>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    document.getElementById('logDetailModal').addEventListener('show.bs.modal', function (event) {
+        var btn = event.relatedTarget;
+        document.getElementById('logSentAt').textContent  = btn.getAttribute('data-sentat');
+        document.getElementById('logDarNo').textContent   = btn.getAttribute('data-darno') || '—';
+        document.getElementById('logTo').textContent      = btn.getAttribute('data-to');
+        document.getElementById('logSubject').textContent = btn.getAttribute('data-subject');
+
+        var success = btn.getAttribute('data-success') === 'true';
+        var status  = btn.getAttribute('data-status');
+        document.getElementById('logResult').innerHTML = success
+            ? '<span class="badge bg-success">Success (' + (status || '') + ')</span>'
+            : '<span class="badge bg-danger">Failed (' + (status || 'Error') + ')</span>';
+
+        var debug = btn.getAttribute('data-debug') === 'true';
+        document.getElementById('logMode').innerHTML = debug
+            ? '<span class="badge bg-secondary">DEBUG MODE</span>'
+            : '<span class="badge bg-primary">Production</span>';
+
+        var resp = btn.getAttribute('data-response');
+        var err  = btn.getAttribute('data-error');
+        document.getElementById('logResponse').textContent = err || resp || '(no data)';
+    });
+</script>
+}

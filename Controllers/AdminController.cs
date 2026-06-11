@@ -20,6 +20,81 @@ namespace BTQCDar.Controllers
             return View();
         }
 
+        // ── GET /Admin/EmailLog — Audit trail of sent emails ──────────────────
+        public IActionResult EmailLog(string? darNo, string? result, int page = 1)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return redirect;
+            if (!session.IsAdmin)
+                return RedirectToAction("Index", "Dashboards");
+
+            const int pageSize = 50;
+            var (list, total) = GetEmailLogs(darNo, result, page, pageSize);
+
+            ViewBag.Session = session;
+            ViewBag.DarNo = darNo ?? string.Empty;
+            ViewBag.Result = result ?? string.Empty;
+            ViewBag.Page = page;
+            ViewBag.PageSize = pageSize;
+            ViewBag.Total = total;
+            ViewBag.TotalPages = (int)Math.Ceiling(total / (double)pageSize);
+            return View(list);
+        }
+
+        private (List<BTQCDar.Models.EmailLogModel> list, int total) GetEmailLogs(
+            string? darNo, string? result, int page, int pageSize)
+        {
+            var list = new List<BTQCDar.Models.EmailLogModel>();
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
+
+            var where = "WHERE 1=1";
+            if (!string.IsNullOrWhiteSpace(darNo))
+                where += " AND DarNo LIKE @darNo";
+            if (result == "success")
+                where += " AND IsSuccess = 1";
+            else if (result == "failed")
+                where += " AND IsSuccess = 0";
+
+            // Count
+            using (var countCmd = new SqlCommand($"SELECT COUNT(*) FROM [dbo].[dar_EmailLog] {where}", conn))
+            {
+                if (!string.IsNullOrWhiteSpace(darNo))
+                    countCmd.Parameters.AddWithValue("@darNo", $"%{darNo}%");
+                var total = (int)countCmd.ExecuteScalar();
+
+                // Page
+                var sql = $@"SELECT * FROM [dbo].[dar_EmailLog] {where}
+                             ORDER BY SentAt DESC
+                             OFFSET @offset ROWS FETCH NEXT @pageSize ROWS ONLY";
+                using var cmd = new SqlCommand(sql, conn);
+                if (!string.IsNullOrWhiteSpace(darNo))
+                    cmd.Parameters.AddWithValue("@darNo", $"%{darNo}%");
+                cmd.Parameters.AddWithValue("@offset", (page - 1) * pageSize);
+                cmd.Parameters.AddWithValue("@pageSize", pageSize);
+
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                {
+                    list.Add(new BTQCDar.Models.EmailLogModel
+                    {
+                        LogId = (int)rdr["LogId"],
+                        DarNo = rdr["DarNo"] as string,
+                        ToEmail = rdr["ToEmail"].ToString()!,
+                        OriginalTo = rdr["OriginalTo"] as string,
+                        Subject = rdr["Subject"].ToString()!,
+                        IsSuccess = (bool)rdr["IsSuccess"],
+                        StatusCode = rdr["StatusCode"] as int?,
+                        ResponseBody = rdr["ResponseBody"] as string,
+                        ErrorMessage = rdr["ErrorMessage"] as string,
+                        IsDebugMode = (bool)rdr["IsDebugMode"],
+                        SentAt = (DateTime)rdr["SentAt"],
+                    });
+                }
+                return (list, total);
+            }
+        }
+
         // ── GET /Admin/GetAllUsers (AJAX) ─────────────────────────────────────
         [HttpGet]
         public IActionResult GetAllUsers()
@@ -35,7 +110,7 @@ namespace BTQCDar.Controllers
                 conn.Open();
                 using var cmd = new SqlCommand("dbo.usp_GetAllUserFromAD", conn)
                 {
-                    CommandType    = System.Data.CommandType.StoredProcedure,
+                    CommandType = System.Data.CommandType.StoredProcedure,
                     CommandTimeout = 15
                 };
                 using var rdr = cmd.ExecuteReader();
@@ -43,17 +118,16 @@ namespace BTQCDar.Controllers
                 {
                     list.Add(new ADUserModel
                     {
-                        Id            = rdr["Id"] != DBNull.Value ? (int)rdr["Id"] : null,
-                        SamAcc        = rdr["SamAcc"].ToString()        ?? string.Empty,
-                        Email         = rdr["Email"].ToString()         ?? string.Empty,
-                        FullName      = rdr["FullName"].ToString()      ?? string.Empty,
-                        DepCode       = rdr["DepCode"].ToString()       ?? string.Empty,
-                        Department    = rdr["Department"].ToString()    ?? string.Empty,
+                        SamAcc = rdr["SamAcc"].ToString() ?? string.Empty,
+                        Email = rdr["Email"].ToString() ?? string.Empty,
+                        FullName = rdr["FullName"].ToString() ?? string.Empty,
+                        DepCode = rdr["DepCode"].ToString() ?? string.Empty,
+                        Department = rdr["Department"].ToString() ?? string.Empty,
                         ManagerSamAcc = rdr["ManagerSamAcc"].ToString() ?? string.Empty,
-                        ManagerName   = rdr["ManagerName"].ToString()   ?? string.Empty,
-                        ManagerEmail  = rdr["ManagerEmail"].ToString()  ?? string.Empty,
-                        RoleType      = rdr["RoleType"] != DBNull.Value ? (int)rdr["RoleType"] : null,
-                        RoleName      = rdr["RoleName"].ToString()      ?? string.Empty,
+                        ManagerName = rdr["ManagerName"].ToString() ?? string.Empty,
+                        ManagerEmail = rdr["ManagerEmail"].ToString() ?? string.Empty,
+                        RoleType = rdr["RoleType"] != DBNull.Value ? (int)rdr["RoleType"] : null,
+                        RoleName = rdr["RoleName"].ToString() ?? string.Empty,
                     });
                 }
             }
@@ -102,13 +176,13 @@ namespace BTQCDar.Controllers
                 conn.Open();
                 using var cmd = new SqlCommand("dbo.usp_SaveUserApprovalRole", conn)
                 {
-                    CommandType    = System.Data.CommandType.StoredProcedure,
+                    CommandType = System.Data.CommandType.StoredProcedure,
                     CommandTimeout = 10
                 };
-                cmd.Parameters.AddWithValue("@SamAcc",   samAcc);
+                cmd.Parameters.AddWithValue("@SamAcc", samAcc);
                 cmd.Parameters.AddWithValue("@FullName", fullName);
-                cmd.Parameters.AddWithValue("@DepCode",  depCode);
-                cmd.Parameters.AddWithValue("@Depart",   depart);
+                cmd.Parameters.AddWithValue("@DepCode", depCode);
+                cmd.Parameters.AddWithValue("@Depart", depart);
                 cmd.Parameters.AddWithValue("@RoleType", roleType);
                 cmd.Parameters.AddWithValue("@IsActive", true);
                 cmd.ExecuteNonQuery();
@@ -135,7 +209,7 @@ namespace BTQCDar.Controllers
                 conn.Open();
                 using var cmd = new SqlCommand("dbo.usp_DeleteUserApprovalRole", conn)
                 {
-                    CommandType    = System.Data.CommandType.StoredProcedure,
+                    CommandType = System.Data.CommandType.StoredProcedure,
                     CommandTimeout = 10
                 };
                 cmd.Parameters.AddWithValue("@Id", id);

@@ -26,6 +26,7 @@ namespace BTQCDar.Controllers
 
             
             // 2. SSO callback — params present in query string
+
             if (!string.IsNullOrEmpty(user))
             {
                 string[] userDomain = user.Split('\\');
