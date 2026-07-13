@@ -193,12 +193,22 @@ namespace BTQCDar.Controllers
                     session.IsMR = (bool)(rdr["IsMR"] ?? false);
                     session.IsDCO = (bool)(rdr["IsDCO"] ?? false);
                     session.IsAdmin = (bool)(rdr["IsAdmin"] ?? false);
+                    session.QMRPermiss = HasColumn(rdr, "QMRPermiss") && (bool)(rdr["QMRPermiss"] ?? false);
                 }
             }
             catch
             {
                 // Non-fatal — roles default to requester-only
             }
+        }
+
+        /// <summary>Column-existence guard — lets LoadUserRoles run before SQL/14_QMRPermiss.sql is applied.</summary>
+        private static bool HasColumn(SqlDataReader rdr, string columnName)
+        {
+            for (int i = 0; i < rdr.FieldCount; i++)
+                if (string.Equals(rdr.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
         }
     }
 }

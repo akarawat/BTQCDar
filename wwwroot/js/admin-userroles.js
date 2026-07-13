@@ -7,6 +7,7 @@ $(function () {
 
     var allUsers  = [];
     var roleConfig = [];
+    var qmrPermissMap = {}; // samAcc(lowercase) -> qmrPermiss bool, RoleType=2 (QMR) only
     var $toast = new bootstrap.Toast($('#toastMsg')[0], { delay: 3000 });
 
     function showToast(msg, isSuccess) {
@@ -14,6 +15,20 @@ $(function () {
                       .addClass(isSuccess ? 'text-bg-success' : 'text-bg-danger');
         $('#toastText').text(msg);
         $toast.show();
+    }
+
+    // QMR Approve cell — checkbox for RoleType=2 (QMR) rows only, "—" for every other role
+    function buildQmrCell($cell, u) {
+        if (u.roleType === 2) {
+            var checked = !!qmrPermissMap[u.samAcc.toLowerCase()];
+            $cell.html('<input type="checkbox" class="form-check-input qmr-permiss-chk" '
+                + 'title="Allow this QMR to approve DAR">')
+                .find('.qmr-permiss-chk')
+                .data('samacc', u.samAcc)
+                .prop('checked', checked);
+        } else {
+            $cell.html('<span class="text-muted">—</span>');
+        }
     }
 
     // ── 1. Load role config first ───────────────────────────────────
@@ -28,26 +43,39 @@ $(function () {
         });
     }
 
-    // ── 2. Load all users ───────────────────────────────────────────
+    // ── 2a. Load QMRPermiss map (RoleType=2 users only) ─────────────
+    function loadQmrPermiss(cb) {
+        $.getJSON('/Admin/GetUserRoles', function (data) {
+            qmrPermissMap = {};
+            data.forEach(function (r) {
+                if (r.roleType === 2) qmrPermissMap[r.samAcc.toLowerCase()] = !!r.qmrPermiss;
+            });
+            if (cb) cb();
+        }).fail(function () { if (cb) cb(); }); // non-fatal — checkboxes default unchecked
+    }
+
+    // ── 2b. Load all users ───────────────────────────────────────────
     function loadUsers() {
-        $('#tblBody').html('<tr><td colspan="7" class="text-center py-4 text-muted">'
+        $('#tblBody').html('<tr><td colspan="8" class="text-center py-4 text-muted">'
             + '<span class="spinner-border spinner-border-sm me-2"></span>Loading...</td></tr>');
 
-        $.getJSON('/Admin/GetAllUsers', function (data) {
-            allUsers = data;
+        loadQmrPermiss(function () {
+            $.getJSON('/Admin/GetAllUsers', function (data) {
+                allUsers = data;
 
-            // Populate dept filter
-            var depts = {};
-            data.forEach(function (u) { depts[u.department] = true; });
-            $('#filterDept').find('option:not(:first)').remove();
-            Object.keys(depts).sort().forEach(function (d) {
-                $('#filterDept').append($('<option>').val(d).text(d));
+                // Populate dept filter
+                var depts = {};
+                data.forEach(function (u) { depts[u.department] = true; });
+                $('#filterDept').find('option:not(:first)').remove();
+                Object.keys(depts).sort().forEach(function (d) {
+                    $('#filterDept').append($('<option>').val(d).text(d));
+                });
+
+                renderTable(data);
+            }).fail(function () {
+                $('#tblBody').html('<tr><td colspan="8" class="text-danger text-center py-3">'
+                    + 'Failed to load users.</td></tr>');
             });
-
-            renderTable(data);
-        }).fail(function () {
-            $('#tblBody').html('<tr><td colspan="7" class="text-danger text-center py-3">'
-                + 'Failed to load users.</td></tr>');
         });
     }
 
@@ -57,7 +85,7 @@ $(function () {
         $('#userCount').text(data.length + ' users');
 
         if (data.length === 0) {
-            $body.html('<tr><td colspan="7" class="text-center text-muted py-3">No users found.</td></tr>');
+            $body.html('<tr><td colspan="8" class="text-center text-muted py-3">No users found.</td></tr>');
             return;
         }
 
@@ -83,12 +111,17 @@ $(function () {
                 ? '<span class="badge bg-danger bg-opacity-75">' + $('<span>').text(u.roleName).html() + '</span>'
                 : '<span class="text-muted small">—</span>';
 
+            // QMR Approve — checkbox only for RoleType=2 (QMR); every other role is read-only "—"
+            var $qmrCell = $('<td class="text-center qmr-cell">');
+            buildQmrCell($qmrCell, u);
+
             var $tr = $('<tr>').attr('data-samacc', u.samAcc.toLowerCase())
                 .append($('<td>').html('<code class="small">' + $('<span>').text(u.samAcc).html() + '</code>'))
                 .append($('<td>').text(u.fullName))
                 .append($('<td class="small">').text(u.department))
                 .append($('<td class="small text-muted">').text(u.managerName))
                 .append($('<td class="current-role">').html(currentRoleBadge))
+                .append($qmrCell)
                 .append($actionCell);
 
             $body.append($tr);
@@ -117,11 +150,39 @@ $(function () {
                         .html('<span class="badge bg-danger bg-opacity-75">'
                              + $('<span>').text(roleName).html() + '</span>');
                     $sel.closest('tr').find('button.btn-outline-danger').show();
+                    // Role changed — rebuild QMR cell (newly-assigned QMR starts unchecked, matches DB default)
+                    u.roleType = rt;
+                    buildQmrCell($sel.closest('tr').find('.qmr-cell').empty(), u);
                     showToast('Role assigned: ' + u.fullName + ' → ' + roleName, true);
                 } else {
                     showToast('Error: ' + (res.message || 'Unknown error'), false);
                 }
             }).fail(function () {
+                showToast('Network error. Please try again.', false);
+            });
+        });
+
+        // QMR Approve checkbox → save
+        $body.find('.qmr-permiss-chk').on('change', function () {
+            var $chk    = $(this);
+            var samAcc  = $chk.data('samacc');
+            var permiss = $chk.prop('checked');
+
+            $.post('/Admin/SaveQMRPermiss', {
+                samAcc: samAcc, permiss: permiss,
+                __RequestVerificationToken: $('input[name="__RequestVerificationToken"]').val()
+            })
+            .done(function (res) {
+                if (res.success) {
+                    qmrPermissMap[samAcc.toLowerCase()] = permiss;
+                    showToast((permiss ? 'QMR Approve granted to ' : 'QMR Approve revoked from ') + samAcc, true);
+                } else {
+                    $chk.prop('checked', !permiss);
+                    showToast('Error: ' + (res.message || 'Unknown error'), false);
+                }
+            })
+            .fail(function () {
+                $chk.prop('checked', !permiss);
                 showToast('Network error. Please try again.', false);
             });
         });

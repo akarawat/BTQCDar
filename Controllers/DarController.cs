@@ -246,11 +246,12 @@ namespace BTQCDar.Controllers
                          approvedDate: DateTime.Now,
                          remarks: remarks);
 
-            // Notify QMR (MR role) that their agreement is required
-            _ = _mailer.NotifyMRAsync(
-                    GetMREmail(),
-                    dar.DarNo, dar.DocumentName,
-                    session.FullName, _appSettings.URLSITE, id);
+            // Notify QMR(s) with QMRPermiss=1 that their agreement is required
+            foreach (var mrEmail in GetMREmails())
+                _ = _mailer.NotifyMRAsync(
+                        mrEmail,
+                        dar.DarNo, dar.DocumentName,
+                        session.FullName, _appSettings.URLSITE, id);
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} approved — forwarded to Document Control Officer." });
         }
@@ -357,9 +358,10 @@ namespace BTQCDar.Controllers
                     approvedDate: result.SignedAt,
                     remarks: remarks);
 
-                _ = _mailer.NotifyMRAsync(
-                        GetMREmail(), dar.DarNo, dar.DocumentName,
-                        session.FullName, _appSettings.URLSITE, id);
+                foreach (var mrEmail in GetMREmails())
+                    _ = _mailer.NotifyMRAsync(
+                            mrEmail, dar.DarNo, dar.DocumentName,
+                            session.FullName, _appSettings.URLSITE, id);
 
                 return Json(new
                 {
@@ -557,6 +559,8 @@ namespace BTQCDar.Controllers
             if (dar.Status != DarStatus.PendingDCO)
                 return Json(new { success = false, message = "DAR is not awaiting DCO registration." });
 
+            // dcoRemarks → DCORemarks column (DCC-specific note)
+            // remarks    → Remarks column is NOT overwritten here
             UpdateDCO(id, session.SamAcc, registeredDate, DarStatus.Completed, dcoRemarks);
 
             // Notify requester — DAR fully completed
@@ -602,6 +606,41 @@ namespace BTQCDar.Controllers
                         _appSettings.URLSITE, id);
 
             return Json(new { success = true, message = $"DAR {dar.DarNo} has been rejected." });
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/All  — Admin: full list of all DARs
+        // ────────────────────────────────────────────────────────────────────
+        public IActionResult All(string? q, string? status)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return redirect;
+
+            // Admin or QMR (role=2) only
+            if (!session.IsAdmin && !session.IsMR)
+            {
+                TempData["Error"] = "Access denied.";
+                return RedirectToAction("Index", "Dashboards");
+            }
+
+            var list = GetAllDars(q, status);
+            ViewBag.Session = session;
+            ViewBag.Q = q ?? string.Empty;
+            ViewBag.Status = status ?? string.Empty;
+            return View(list);
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/History  — documents I have signed or approved
+        // ────────────────────────────────────────────────────────────────────
+        public IActionResult History()
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return redirect;
+
+            var list = GetHistoryList(session);
+            ViewBag.Session = session;
+            return View(list);
         }
 
         // ────────────────────────────────────────────────────────────────────
@@ -804,7 +843,236 @@ namespace BTQCDar.Controllers
         }
 
         // ────────────────────────────────────────────────────────────────────
-        // GET /api/audit/reference/DAR-2026-00018
+        // GET /Dar/GetApprovers — Approver list for reassign dropdown
+        // ────────────────────────────────────────────────────────────────────
+        [HttpGet]
+        public IActionResult GetApprovers()
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false });
+            if (!session.IsAdmin) return Json(new { success = false, message = "Admin only." });
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+                // RoleType 7=Manager, 8=MD — fix Approver roles
+                // dar_UserApprovalRoles has no Email column — resolve via AD/HR lookup, same as usp_GetApproverByDocType
+                const string sql = @"
+                    SELECT u.SamAcc, u.FullName, [dbo].[FUNC_GetInfoBySamAcc](u.SamAcc,1) AS Email, r.RoleName
+                    FROM   [dbo].[dar_UserApprovalRoles] u
+                    INNER JOIN [dbo].[dar_RoleConfig] r ON r.RoleType = u.RoleType
+                    WHERE  u.IsActive = 1 AND u.RoleType IN (7, 8)
+                    ORDER BY r.RoleType DESC, u.FullName";
+                using var cmd = new SqlCommand(sql, conn);
+                using var rdr = cmd.ExecuteReader();
+                var list = new List<object>();
+                while (rdr.Read())
+                    list.Add(new
+                    {
+                        samAcc = rdr["SamAcc"].ToString(),
+                        fullName = rdr["FullName"].ToString(),
+                        email = rdr["Email"].ToString(),
+                        roleName = rdr["RoleName"].ToString()
+                    });
+                return Json(new { success = true, data = list });
+            }
+            catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/GetApproverChangeLog?darId=X
+        // ────────────────────────────────────────────────────────────────────
+        [HttpGet]
+        public IActionResult GetApproverChangeLog(int darId)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false });
+            if (!session.IsAdmin) return Json(new { success = false, message = "Admin only." });
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+                const string sql = @"
+                    SELECT ChangedByAdminName, OldApproverName,
+                           NewApproverName, Reason, ChangedAt
+                    FROM   [dbo].[dar_ApproverChangeLog]
+                    WHERE  DarId = @DarId
+                    ORDER BY ChangedAt DESC";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@DarId", darId);
+                using var rdr = cmd.ExecuteReader();
+                var list = new List<object>();
+                while (rdr.Read())
+                    list.Add(new
+                    {
+                        changedByAdmin = rdr["ChangedByAdminName"].ToString(),
+                        oldApprover = rdr["OldApproverName"] as string ?? "—",
+                        newApprover = rdr["NewApproverName"].ToString(),
+                        reason = rdr["Reason"] as string ?? "—",
+                        changedAt = ((DateTime)rdr["ChangedAt"]).ToString("dd/MM/yyyy HH:mm")
+                    });
+                return Json(new { success = true, data = list });
+            }
+            catch (Exception ex) { return Json(new { success = false, message = ex.Message }); }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // POST /Dar/ReassignApprover — Admin reassigns Approver (any status)
+        // ────────────────────────────────────────────────────────────────────
+        [HttpPost]
+        public async Task<IActionResult> ReassignApprover(
+            int id, string newApproverSamAcc, string newApproverName,
+            string newApproverEmail, string? reason)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+            if (!session.IsAdmin) return Json(new { success = false, message = "Admin only." });
+
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+
+            if (string.Equals(dar.ApproverSamAcc, newApproverSamAcc,
+                              StringComparison.OrdinalIgnoreCase))
+                return Json(new { success = false, message = "Same approver selected. No change made." });
+
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
+            using var tx = conn.BeginTransaction();
+            try
+            {
+                // 1. Update dar_Master — clear old signature (new approver must re-sign)
+                const string updSql = @"
+                    UPDATE [dbo].[dar_Master] SET
+                        ApproverSamAcc         = @NewSam,
+                        ApproverName           = @NewName,
+                        ApproverEmail          = @NewEmail,
+                        ApproverSignedAt       = NULL,
+                        ApproverSignatureBase64 = NULL,
+                        ApproverCertThumbprint  = NULL,
+                        ApprovedDate           = NULL,
+                        ApprovedBySamAcc       = NULL,
+                        ApprovedByName         = NULL,
+                        UpdatedAt              = GETDATE()
+                    WHERE DarId = @DarId";
+                using (var cmd = new SqlCommand(updSql, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@DarId", id);
+                    cmd.Parameters.AddWithValue("@NewSam", newApproverSamAcc);
+                    cmd.Parameters.AddWithValue("@NewName", newApproverName);
+                    cmd.Parameters.AddWithValue("@NewEmail", (object?)newApproverEmail ?? DBNull.Value);
+                    cmd.ExecuteNonQuery();
+                }
+
+                // 2. Audit log
+                const string logSql = @"
+                    INSERT INTO [dbo].[dar_ApproverChangeLog]
+                        (DarId, DarNo, ChangedByAdminSam, ChangedByAdminName,
+                         OldApproverSamAcc, OldApproverName,
+                         NewApproverSamAcc, NewApproverName, NewApproverEmail,
+                         Reason, ChangedAt)
+                    VALUES
+                        (@DarId, @DarNo, @AdminSam, @AdminName,
+                         @OldSam, @OldName, @NewSam, @NewName, @NewEmail,
+                         @Reason, GETDATE())";
+                using (var cmd = new SqlCommand(logSql, conn, tx))
+                {
+                    cmd.Parameters.AddWithValue("@DarId", id);
+                    cmd.Parameters.AddWithValue("@DarNo", dar.DarNo);
+                    cmd.Parameters.AddWithValue("@AdminSam", session.SamAcc);
+                    cmd.Parameters.AddWithValue("@AdminName", session.FullName);
+                    cmd.Parameters.AddWithValue("@OldSam", (object?)dar.ApproverSamAcc ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@OldName", (object?)dar.ApproverName ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@NewSam", newApproverSamAcc);
+                    cmd.Parameters.AddWithValue("@NewName", newApproverName);
+                    cmd.Parameters.AddWithValue("@NewEmail", (object?)newApproverEmail ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Reason", (object?)reason ?? DBNull.Value);
+                    cmd.ExecuteNonQuery();
+                }
+                tx.Commit();
+            }
+            catch (Exception ex)
+            {
+                tx.Rollback();
+                return Json(new { success = false, message = ex.Message });
+            }
+
+            // 3. Notify new Approver by email
+            if (!string.IsNullOrEmpty(newApproverEmail))
+                _ = _mailer.NotifyApproverAsync(
+                        newApproverEmail,
+                        dar.DarNo, dar.DocumentName,
+                        session.FullName, _appSettings.URLSITE, id);
+
+            return Json(new
+            {
+                success = true,
+                message = $"Approver changed to {newApproverName}. Email notification sent."
+            });
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // POST /Dar/ResendEmail — Admin: resend reminder email (no effect on workflow)
+        // ────────────────────────────────────────────────────────────────────
+        [HttpPost]
+        public async Task<IActionResult> ResendEmail(int id, string role)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+            if (!session.IsAdmin) return Json(new { success = false, message = "Admin only." });
+
+            var dar = GetDarById(id);
+            if (dar == null) return Json(new { success = false, message = "DAR not found." });
+
+            try
+            {
+                bool sent;
+                string recipient;
+
+                if (string.Equals(role, "Reviewer", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (string.IsNullOrEmpty(dar.ReviewerEmail))
+                        return Json(new { success = false, message = "Reviewer email is not set." });
+
+                    recipient = dar.ReviewerEmail;
+                    sent = await _mailer.NotifyReviewerAsync(
+                            dar.ReviewerEmail, dar.DarNo, dar.DocumentName,
+                            dar.RequestedByName, string.Empty,
+                            _appSettings.URLSITE, id);
+                }
+                else if (string.Equals(role, "Approver", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (dar.ApproverSignedAt != null)
+                        return Json(new { success = false, message = "Approver has already signed. No need to resend." });
+                    if (string.IsNullOrEmpty(dar.ApproverEmail))
+                        return Json(new { success = false, message = "Approver email is not set." });
+
+                    recipient = dar.ApproverEmail;
+                    sent = await _mailer.NotifyApproverAsync(
+                            dar.ApproverEmail, dar.DarNo, dar.DocumentName,
+                            dar.ReviewerName, _appSettings.URLSITE, id);
+                }
+                else
+                {
+                    return Json(new { success = false, message = "Invalid role." });
+                }
+
+                return Json(new
+                {
+                    success = sent,
+                    message = sent
+                        ? $"Reminder email sent to {recipient}."
+                        : "Failed to send email. Please check Email Log."
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[ResendEmail] {ex}");
+                return Json(new { success = false, message = $"Error: {ex.Message}" });
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/AuditLog?darNo=DAR-2026-00017
         // Returns digital signature audit records from BTDigitalSign API
         // ────────────────────────────────────────────────────────────────────
         [HttpGet]
@@ -818,6 +1086,7 @@ namespace BTQCDar.Controllers
                 var audit = await _sign.GetAuditAsync(darNo);
                 if (audit == null)
                     return Json(new { success = false, message = "No audit records found." });
+
                 // signedByUser from API = machine account (BTWEB04$), not the real user.
                 // Enrich with actual names from dar_Master using purpose field to identify role.
                 var dar = GetDarByNo(darNo);
@@ -876,41 +1145,8 @@ namespace BTQCDar.Controllers
                 return Json(new { success = false, message = ex.Message });
             }
         }
-        // ────────────────────────────────────────────────────────────────────
-        // GET /Dar/All  — Admin: full list of all DARs
-        // ────────────────────────────────────────────────────────────────────
-        public IActionResult All(string? q, string? status)
-        {
-            var redirect = RequireLogin(out var session);
-            if (redirect != null) return redirect;
-
-            // Admin or QMR (role=2) only
-            if (!session.IsAdmin && !session.IsMR)
-            {
-                TempData["Error"] = "Access denied.";
-                return RedirectToAction("Index", "Dashboards");
-            }
-
-            var list = GetAllDars(q, status);
-            ViewBag.Session = session;
-            ViewBag.Q = q ?? string.Empty;
-            ViewBag.Status = status ?? string.Empty;
-            return View(list);
-        }
 
         // ────────────────────────────────────────────────────────────────────
-        // GET /Dar/History  — documents I have signed or approved
-        // ────────────────────────────────────────────────────────────────────
-        public IActionResult History()
-        {
-            var redirect = RequireLogin(out var session);
-            if (redirect != null) return redirect;
-
-            var list = GetHistoryList(session);
-            ViewBag.Session = session;
-            return View(list);
-        }
-
         // GET /Dar/PendingCount  — returns pending count for current user
         // ────────────────────────────────────────────────────────────────────
         [HttpGet]
@@ -1066,29 +1302,64 @@ namespace BTQCDar.Controllers
             catch { return string.Empty; }
         }
 
-        /// <summary>Get first MR email from dar_UserRoles</summary>
-        private string GetMREmail()
+        /// <summary>
+        /// Get emails of QMR users who can actually approve (RoleType=2, IsActive=1, QMRPermiss=1) —
+        /// they are the only ones who see the Sign &amp; Agree action, so only they should be notified.
+        /// Falls back to any active QMR (pre-QMRPermiss behavior) if none has been granted permission yet,
+        /// then to legacy dar_UserRoles.IsMR, so notifications never silently drop to zero.
+        /// </summary>
+        private List<string> GetMREmails()
         {
+            var emails = new List<string>();
             try
             {
                 using var conn = _db.GetQCDarConnection();
                 conn.Open();
-                const string sql = "SELECT TOP 1 SamAcc FROM [dbo].[dar_UserRoles] WHERE IsMR=1";
-                using var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
-                var sam = cmd.ExecuteScalar()?.ToString() ?? string.Empty;
-                return GetRequesterEmail(sam);
+                const string sql = @"
+                    SELECT SamAcc FROM [dbo].[dar_UserApprovalRoles]
+                    WHERE RoleType=2 AND IsActive=1 AND QMRPermiss=1
+                    UNION ALL
+                    SELECT TOP 1 SamAcc FROM [dbo].[dar_UserApprovalRoles]
+                    WHERE RoleType=2 AND IsActive=1
+                      AND NOT EXISTS (
+                          SELECT 1 FROM [dbo].[dar_UserApprovalRoles]
+                          WHERE RoleType=2 AND IsActive=1 AND QMRPermiss=1)
+                    UNION ALL
+                    SELECT TOP 1 SamAcc FROM [dbo].[dar_UserRoles]
+                    WHERE IsMR=1
+                      AND NOT EXISTS (
+                          SELECT 1 FROM [dbo].[dar_UserApprovalRoles] WHERE RoleType=2 AND IsActive=1)";
+                using var cmd = new SqlCommand(sql, conn);
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                {
+                    var sam = rdr["SamAcc"].ToString();
+                    if (!string.IsNullOrEmpty(sam))
+                    {
+                        var email = GetRequesterEmail(sam);
+                        if (!string.IsNullOrEmpty(email)) emails.Add(email);
+                    }
+                }
             }
-            catch { return string.Empty; }
+            catch { /* return whatever was collected so far */ }
+            return emails;
         }
 
-        /// <summary>Get first DCO email from dar_UserRoles</summary>
+        /// <summary>
+        /// Get first active DCC email. Source of truth is dar_UserApprovalRoles (RoleType=1),
+        /// same as usp_GetUserRoles — falls back to legacy dar_UserRoles.IsDCO if not found there.
+        /// </summary>
         private string GetDCOEmail()
         {
             try
             {
                 using var conn = _db.GetQCDarConnection();
                 conn.Open();
-                const string sql = "SELECT TOP 1 SamAcc FROM [dbo].[dar_UserRoles] WHERE IsDCO=1";
+                const string sql = @"
+                    SELECT ISNULL(
+                        (SELECT TOP 1 SamAcc FROM [dbo].[dar_UserApprovalRoles] WHERE RoleType=1 AND IsActive=1),
+                        (SELECT TOP 1 SamAcc FROM [dbo].[dar_UserRoles] WHERE IsDCO=1)
+                    )";
                 using var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
                 var sam = cmd.ExecuteScalar()?.ToString() ?? string.Empty;
                 return GetRequesterEmail(sam);
@@ -1319,10 +1590,12 @@ namespace BTQCDar.Controllers
             conn.Open();
             const string sql = @"
                 UPDATE [dbo].[dar_Master] SET
-                    DCOSamAcc=@DCOSamAcc, DocRegisteredDate=@RegDate,
-                    Status=@Status, DCORemarks=COALESCE(@DCORemarks, DCORemarks), 
-                    UpdatedAt=GETDATE()
-                WHERE DarId=@DarId";
+                    DCOSamAcc         = @DCOSamAcc,
+                    DocRegisteredDate = @RegDate,
+                    Status            = @Status,
+                    DCORemarks        = @DCORemarks,
+                    UpdatedAt         = GETDATE()
+                WHERE DarId = @DarId";
             using var cmd = new SqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@DarId", darId);
             cmd.Parameters.AddWithValue("@DCOSamAcc", dcoSam);
@@ -1331,6 +1604,7 @@ namespace BTQCDar.Controllers
             cmd.Parameters.AddWithValue("@DCORemarks", (object?)dcoRemarks ?? DBNull.Value);
             cmd.ExecuteNonQuery();
         }
+
         private DarMasterModel? GetDarByNo(string darNo)
         {
             using var conn = _db.GetQCDarConnection();
@@ -1341,6 +1615,7 @@ namespace BTQCDar.Controllers
             using var rdr = cmd.ExecuteReader();
             return rdr.Read() ? MapDar(rdr) : null;
         }
+
         private DarMasterModel? GetDarById(int id)
         {
             using var conn = _db.GetQCDarConnection();
@@ -1395,6 +1670,7 @@ namespace BTQCDar.Controllers
             }
             return list;
         }
+
         private List<DarHistoryItemModel> GetHistoryList(UserSessionModel session)
         {
             var list = new List<DarHistoryItemModel>();
@@ -1472,6 +1748,7 @@ namespace BTQCDar.Controllers
             }
             return list;
         }
+
         private List<DarListItemModel> GetDarList(UserSessionModel session)
         {
             var list = new List<DarListItemModel>();
@@ -1723,6 +2000,7 @@ namespace BTQCDar.Controllers
             cmd.Parameters.AddWithValue("@Thumb", certThumbprint);
             cmd.ExecuteNonQuery();
         }
+
         private static void BindDarParams(SqlCommand cmd, DarMasterModel m)
         {
             cmd.Parameters.AddWithValue("@DarNo", S(m.DarNo));

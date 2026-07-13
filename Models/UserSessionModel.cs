@@ -26,5 +26,6 @@ namespace BTQCDar.Models
         public bool IsMR { get; set; } = false;  // Management Representative
         public bool IsDCO { get; set; } = false;  // Document Control Officer
         public bool IsAdmin { get; set; } = false;
+        public bool QMRPermiss { get; set; } = false;  // QMR-only: allowed to approve (Sign & Agree)
     }
 }

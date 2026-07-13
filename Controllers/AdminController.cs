@@ -221,5 +221,103 @@ namespace BTQCDar.Controllers
                 return Json(new { success = false, message = ex.Message });
             }
         }
+
+        // ── GET /Admin/GetUserRoles (AJAX) — assigned roles incl. QMRPermiss ──
+        [HttpGet]
+        public IActionResult GetUserRoles()
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new List<object>());
+            if (!session.IsAdmin) return Forbid();
+
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+                const string sql = @"
+                    SELECT u.Id, u.SamAcc, u.FullName, u.DepCode AS Dept,
+                           u.RoleType, r.RoleName, u.IsActive,
+                           ISNULL(u.QMRPermiss, 0) AS QMRPermiss
+                    FROM   [dbo].[dar_UserApprovalRoles] u
+                    INNER JOIN [dbo].[dar_RoleConfig] r ON r.RoleType = u.RoleType
+                    ORDER BY r.SortOrder, u.FullName";
+                using var cmd = new SqlCommand(sql, conn);
+                using var rdr = cmd.ExecuteReader();
+                var list = new List<object>();
+                while (rdr.Read())
+                    list.Add(new {
+                        id         = (int)rdr["Id"],
+                        samAcc     = rdr["SamAcc"].ToString(),
+                        fullName   = rdr["FullName"].ToString(),
+                        dept       = rdr["Dept"].ToString(),
+                        roleType   = (int)rdr["RoleType"],
+                        roleName   = rdr["RoleName"].ToString(),
+                        isActive   = (bool)rdr["IsActive"],
+                        qmrPermiss = (bool)rdr["QMRPermiss"]
+                    });
+                return Json(list);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[GetUserRoles] {ex.Message}");
+                return Json(new List<object>());
+            }
+        }
+
+        // ── POST /Admin/SaveQMRPermiss — toggle QMRPermiss for a QMR user ─────
+        [HttpPost]
+        public IActionResult SaveQMRPermiss(string samAcc, bool permiss)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+            if (!session.IsAdmin)  return Json(new { success = false, message = "Admin only." });
+
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+                const string sql = @"
+                    UPDATE [dbo].[dar_UserApprovalRoles]
+                    SET    QMRPermiss = @Permiss, UpdatedAt = GETDATE()
+                    WHERE  LOWER(SamAcc) = LOWER(@SamAcc)
+                      AND  RoleType = 2";   // QMR only
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@SamAcc",  samAcc);
+                cmd.Parameters.AddWithValue("@Permiss", permiss);
+                var rows = cmd.ExecuteNonQuery();
+                return Json(new { success = rows > 0, message = rows > 0 ? "Saved." : "User not found." });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        // ── GET /Admin/GetQMRPermiss?samAcc=X ─────────────────────────────────
+        [HttpGet]
+        public IActionResult GetQMRPermiss(string samAcc)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false });
+            if (!session.IsAdmin)  return Json(new { success = false });
+
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+                const string sql = @"
+                    SELECT ISNULL(QMRPermiss, 0) AS QMRPermiss
+                    FROM   [dbo].[dar_UserApprovalRoles]
+                    WHERE  LOWER(SamAcc) = LOWER(@SamAcc) AND RoleType = 2";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@SamAcc", samAcc);
+                var val = cmd.ExecuteScalar();
+                return Json(new { success = true, permiss = val != null && (int)(byte)val == 1 });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
     }
 }
