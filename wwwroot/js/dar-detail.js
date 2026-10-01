@@ -292,4 +292,134 @@ $(function () {
         }
     });
 
+    // ── Related Documents Identification and Verification ──────────────
+    var $relTbl = $('#tblRelatedDocs');
+    if ($relTbl.length) {
+        var relDarId  = parseInt($relTbl.data('dar-id'));
+        var relCanEdit = $relTbl.data('can-edit') === true || $relTbl.data('can-edit') === 'true';
+
+        loadRelatedDocs();
+
+        function loadRelatedDocs() {
+            $.getJSON('/Dar/GetRelatedDocs', { darId: relDarId }, function (data) {
+                renderRelatedDocs(data || []);
+            }).fail(function () {
+                $('#tblRelatedDocsBody').html('<tr><td colspan="6" class="text-center text-danger py-3">'
+                    + 'Failed to load related documents.</td></tr>');
+            });
+        }
+
+        function renderRelatedDocs(rows) {
+            var $body = $('#tblRelatedDocsBody').empty();
+            var colspan = relCanEdit ? 6 : 5;
+
+            if (!rows.length) {
+                $body.html('<tr><td colspan="' + colspan + '" class="text-center text-muted py-3">'
+                    + 'No related documents.</td></tr>');
+                return;
+            }
+
+            rows.forEach(function (r, i) {
+                $body.append(buildRelatedDocRow(r, i + 1));
+            });
+        }
+
+        function esc(s) { return $('<span>').text(s || '').html(); }
+
+        function buildRelatedDocRow(r, displayItem) {
+            var $tr = $('<tr>').data('reldocid', r.relDocId).data('itemno', r.itemNo || displayItem);
+
+            if (relCanEdit) {
+                $tr.append($('<td>').text(r.itemNo || displayItem));
+                $tr.append($('<td>').html('<input type="text" class="form-control form-control-sm rd-docno" value="'
+                    + esc(r.documentNo) + '" maxlength="200">'));
+                $tr.append($('<td>').html('<input type="text" class="form-control form-control-sm rd-docname" value="'
+                    + esc(r.documentName) + '" maxlength="512">'));
+                $tr.append($('<td class="text-center">').html('<input type="checkbox" class="form-check-input rd-revise"'
+                    + (r.isRevise ? ' checked' : '') + '>'));
+                $tr.append($('<td class="text-center">').html('<input type="checkbox" class="form-check-input rd-keepasis"'
+                    + (r.isKeepAsIs ? ' checked' : '') + '>'));
+                $tr.append($('<td class="text-center">').html(
+                    '<button type="button" class="btn btn-sm btn-outline-success py-0 me-1 rd-save" title="Save">'
+                    + '<i class="bi bi-check-lg"></i></button>'
+                    + '<button type="button" class="btn btn-sm btn-outline-danger py-0 rd-delete" title="Delete">'
+                    + '<i class="bi bi-trash"></i></button>'));
+            } else {
+                $tr.append($('<td>').text(r.itemNo || displayItem));
+                $tr.append($('<td>').text(r.documentNo));
+                $tr.append($('<td>').text(r.documentName));
+                $tr.append($('<td class="text-center">').html(r.isRevise
+                    ? '<i class="bi bi-check-lg text-success"></i>' : '<span class="text-muted">—</span>'));
+                $tr.append($('<td class="text-center">').html(r.isKeepAsIs
+                    ? '<i class="bi bi-check-lg text-success"></i>' : '<span class="text-muted">—</span>'));
+            }
+            return $tr;
+        }
+
+        if (relCanEdit) {
+            // Add a new blank editable row (RelDocId=0 until saved)
+            $('#btnAddRelatedDoc').on('click', function () {
+                $('#tblRelatedDocsBody tr td.text-center.text-muted').closest('tr').remove();
+                var nextItem = $('#tblRelatedDocsBody tr').length + 1;
+                var $row = buildRelatedDocRow({ relDocId: 0, itemNo: nextItem,
+                    documentNo: '', documentName: '', isRevise: false, isKeepAsIs: false }, nextItem);
+                $('#tblRelatedDocsBody').append($row);
+                $row.find('.rd-docno').trigger('focus');
+            });
+
+            // Save row (insert or update)
+            $(document).on('click', '.rd-save', function () {
+                var $row = $(this).closest('tr');
+                var docNo = $row.find('.rd-docno').val().trim();
+                var docName = $row.find('.rd-docname').val().trim();
+
+                if (!docNo && !docName) {
+                    showPageSuccess('Please enter Document No or Document Name.');
+                    return;
+                }
+
+                var $btn = $(this).prop('disabled', true);
+                $.post('/Dar/SaveRelatedDoc', {
+                    relDocId: $row.data('reldocid') || 0,
+                    darId: relDarId,
+                    itemNo: $row.data('itemno'),
+                    documentNo: docNo,
+                    documentName: docName,
+                    isRevise: $row.find('.rd-revise').prop('checked'),
+                    isKeepAsIs: $row.find('.rd-keepasis').prop('checked')
+                })
+                .done(function (res) {
+                    if (res.success) {
+                        $row.data('reldocid', res.relDocId);
+                        showPageSuccess('Related document saved.');
+                    } else {
+                        showPageSuccess('Error: ' + (res.message || 'Unknown error'));
+                    }
+                })
+                .fail(function () { showPageSuccess('Server error. Please try again.'); })
+                .always(function () { $btn.prop('disabled', false); });
+            });
+
+            // Delete row
+            $(document).on('click', '.rd-delete', function () {
+                var $row = $(this).closest('tr');
+                var relDocId = $row.data('reldocid');
+
+                if (!relDocId) { $row.remove(); return; } // unsaved row — just remove client-side
+                if (!confirm('Remove this related document?')) return;
+
+                $.post('/Dar/DeleteRelatedDoc', { relDocId: relDocId })
+                    .done(function (res) {
+                        if (res.success) {
+                            $row.remove();
+                            showPageSuccess('Related document removed.');
+                        } else {
+                            showPageSuccess('Error: ' + (res.message || 'Unknown error'));
+                        }
+                    })
+                    .fail(function () { showPageSuccess('Server error. Please try again.'); });
+            });
+        }
+    }
+
 });

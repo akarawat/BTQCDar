@@ -34,6 +34,9 @@
                        && Model.RequestedBySamAcc == session?.SamAcc)
                       || session?.IsAdmin == true;
 
+    // Related Documents — DCC or Admin can add/edit/delete, any status
+    bool canEditRelatedDocs = session?.IsDCO == true || session?.IsAdmin == true;
+
     string badgeClass = Model.Status switch {
         BTQCDar.Models.DarStatus.Draft           => "bg-secondary",
         BTQCDar.Models.DarStatus.PendingApproval => "bg-warning text-dark",
@@ -160,10 +163,47 @@
         </div>
     }
 
+    <!-- Related Documents Identification and Verification -->
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold small d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-files me-1"></i>Related Documents Identification and Verification</span>
+                @if (canEditRelatedDocs)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-primary py-0" id="btnAddRelatedDoc">
+                        <i class="bi bi-plus-circle me-1"></i>Add
+                    </button>
+                }
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered small mb-0" id="tblRelatedDocs"
+                           data-dar-id="@Model.DarId" data-can-edit="@canEditRelatedDocs.ToString().ToLower()">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:60px">Item</th>
+                                <th>Document No</th>
+                                <th>Document Name</th>
+                                <th class="text-center" style="width:80px">Revise</th>
+                                <th class="text-center" style="width:90px">Keep as is</th>
+                                @if (canEditRelatedDocs)
+                                {
+                                    <th class="text-center" style="width:70px">Action</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody id="tblRelatedDocsBody">
+                            <tr><td colspan="6" class="text-center text-muted py-3">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Workflow History -->
     <div class="col-12">
-        @if (session?.IsAdmin == true)
+        @if (canEditRelatedDocs)
         {
             @Html.AntiForgeryToken()
         }

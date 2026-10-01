@@ -1011,6 +1011,134 @@ namespace BTQCDar.Controllers
         }
 
         // ────────────────────────────────────────────────────────────────────
+        // GET /Dar/GetRelatedDocs?darId=X — Related Documents list (everyone)
+        // ────────────────────────────────────────────────────────────────────
+        [HttpGet]
+        public IActionResult GetRelatedDocs(int darId)
+        {
+            var redirect = RequireLogin(out _);
+            if (redirect != null) return Json(new List<object>());
+
+            var list = new List<object>();
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+                const string sql = @"
+                    SELECT RelDocId, ItemNo, DocumentNo, DocumentName, IsRevise, IsKeepAsIs
+                    FROM   [dbo].[dar_RelatedDoc]
+                    WHERE  DarId = @DarId
+                    ORDER BY ItemNo, RelDocId";
+                using var cmd = new SqlCommand(sql, conn);
+                cmd.Parameters.AddWithValue("@DarId", darId);
+                using var rdr = cmd.ExecuteReader();
+                while (rdr.Read())
+                    list.Add(new
+                    {
+                        relDocId = (int)rdr["RelDocId"],
+                        itemNo = (int)rdr["ItemNo"],
+                        documentNo = rdr["DocumentNo"].ToString(),
+                        documentName = rdr["DocumentName"].ToString(),
+                        isRevise = (bool)rdr["IsRevise"],
+                        isKeepAsIs = (bool)rdr["IsKeepAsIs"]
+                    });
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[GetRelatedDocs] {ex.Message}");
+            }
+            return Json(list);
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // POST /Dar/SaveRelatedDoc — DCC/Admin: add or update one row (upsert)
+        // ────────────────────────────────────────────────────────────────────
+        [HttpPost]
+        public IActionResult SaveRelatedDoc(int relDocId, int darId, int itemNo,
+                                            string documentNo, string documentName,
+                                            bool isRevise, bool isKeepAsIs)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+            if (!session.IsDCO && !session.IsAdmin)
+                return Json(new { success = false, message = "DCC only." });
+
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+
+                if (relDocId > 0)
+                {
+                    const string updSql = @"
+                        UPDATE [dbo].[dar_RelatedDoc] SET
+                            ItemNo = @ItemNo, DocumentNo = @DocumentNo,
+                            DocumentName = @DocumentName,
+                            IsRevise = @IsRevise, IsKeepAsIs = @IsKeepAsIs
+                        WHERE RelDocId = @RelDocId AND DarId = @DarId";
+                    using var cmd = new SqlCommand(updSql, conn);
+                    cmd.Parameters.AddWithValue("@RelDocId", relDocId);
+                    cmd.Parameters.AddWithValue("@DarId", darId);
+                    cmd.Parameters.AddWithValue("@ItemNo", itemNo);
+                    cmd.Parameters.AddWithValue("@DocumentNo", documentNo ?? string.Empty);
+                    cmd.Parameters.AddWithValue("@DocumentName", documentName ?? string.Empty);
+                    cmd.Parameters.AddWithValue("@IsRevise", isRevise);
+                    cmd.Parameters.AddWithValue("@IsKeepAsIs", isKeepAsIs);
+                    cmd.ExecuteNonQuery();
+                    return Json(new { success = true, relDocId });
+                }
+                else
+                {
+                    const string insSql = @"
+                        INSERT INTO [dbo].[dar_RelatedDoc]
+                            (DarId, ItemNo, DocumentNo, DocumentName, IsRevise, IsKeepAsIs)
+                        OUTPUT INSERTED.RelDocId
+                        VALUES (@DarId, @ItemNo, @DocumentNo, @DocumentName, @IsRevise, @IsKeepAsIs)";
+                    using var cmd = new SqlCommand(insSql, conn);
+                    cmd.Parameters.AddWithValue("@DarId", darId);
+                    cmd.Parameters.AddWithValue("@ItemNo", itemNo);
+                    cmd.Parameters.AddWithValue("@DocumentNo", documentNo ?? string.Empty);
+                    cmd.Parameters.AddWithValue("@DocumentName", documentName ?? string.Empty);
+                    cmd.Parameters.AddWithValue("@IsRevise", isRevise);
+                    cmd.Parameters.AddWithValue("@IsKeepAsIs", isKeepAsIs);
+                    var newId = (int)cmd.ExecuteScalar();
+                    return Json(new { success = true, relDocId = newId });
+                }
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // POST /Dar/DeleteRelatedDoc — DCC/Admin: remove one row
+        // ────────────────────────────────────────────────────────────────────
+        [HttpPost]
+        public IActionResult DeleteRelatedDoc(int relDocId)
+        {
+            var redirect = RequireLogin(out var session);
+            if (redirect != null) return Json(new { success = false, message = "Not logged in." });
+            if (!session.IsDCO && !session.IsAdmin)
+                return Json(new { success = false, message = "DCC only." });
+
+            try
+            {
+                using var conn = _db.GetQCDarConnection();
+                conn.Open();
+                using var cmd = new SqlCommand(
+                    "DELETE FROM [dbo].[dar_RelatedDoc] WHERE RelDocId = @RelDocId", conn);
+                cmd.Parameters.AddWithValue("@RelDocId", relDocId);
+                var rows = cmd.ExecuteNonQuery();
+                return Json(new { success = rows > 0 });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        // ────────────────────────────────────────────────────────────────────
         // POST /Dar/ResendEmail — Admin: resend reminder email (no effect on workflow)
         // ────────────────────────────────────────────────────────────────────
         [HttpPost]
