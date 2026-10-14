@@ -1060,8 +1060,11 @@ namespace BTQCDar.Controllers
         {
             var redirect = RequireLogin(out var session);
             if (redirect != null) return Json(new { success = false, message = "Not logged in." });
-            if (!session.IsDCO && !session.IsAdmin)
-                return Json(new { success = false, message = "DCC only." });
+
+            var status = GetDarStatus(darId);
+            if (status == null) return Json(new { success = false, message = "DAR not found." });
+            if (!CanEditRelatedDocs(session, status.Value))
+                return Json(new { success = false, message = "Locked — only DCC can edit related documents after this DAR is completed." });
 
             try
             {
@@ -1119,13 +1122,27 @@ namespace BTQCDar.Controllers
         {
             var redirect = RequireLogin(out var session);
             if (redirect != null) return Json(new { success = false, message = "Not logged in." });
-            if (!session.IsDCO && !session.IsAdmin)
-                return Json(new { success = false, message = "DCC only." });
 
             try
             {
                 using var conn = _db.GetQCDarConnection();
                 conn.Open();
+
+                int darId;
+                using (var find = new SqlCommand(
+                    "SELECT DarId FROM [dbo].[dar_RelatedDoc] WHERE RelDocId = @RelDocId", conn))
+                {
+                    find.Parameters.AddWithValue("@RelDocId", relDocId);
+                    var o = find.ExecuteScalar();
+                    if (o == null) return Json(new { success = false, message = "Row not found." });
+                    darId = (int)o;
+                }
+
+                var status = GetDarStatus(darId);
+                if (status == null) return Json(new { success = false, message = "DAR not found." });
+                if (!CanEditRelatedDocs(session, status.Value))
+                    return Json(new { success = false, message = "Locked — only DCC can edit related documents after this DAR is completed." });
+
                 using var cmd = new SqlCommand(
                     "DELETE FROM [dbo].[dar_RelatedDoc] WHERE RelDocId = @RelDocId", conn);
                 cmd.Parameters.AddWithValue("@RelDocId", relDocId);
@@ -1136,6 +1153,23 @@ namespace BTQCDar.Controllers
             {
                 return Json(new { success = false, message = ex.Message });
             }
+        }
+
+        // Everyone may edit related documents until the DAR is Completed (DCC signed off) or
+        // closed (Rejected/Cancelled); after that only DCC and Admin can.
+        private static bool CanEditRelatedDocs(UserSessionModel session, DarStatus status)
+            => session.IsAdmin || session.IsDCO ||
+               (status != DarStatus.Completed && status != DarStatus.Rejected && status != DarStatus.Cancelled);
+
+        private DarStatus? GetDarStatus(int darId)
+        {
+            using var conn = _db.GetQCDarConnection();
+            conn.Open();
+            using var cmd = new SqlCommand(
+                "SELECT Status FROM [dbo].[dar_Master] WHERE DarId = @DarId", conn);
+            cmd.Parameters.AddWithValue("@DarId", darId);
+            var o = cmd.ExecuteScalar();
+            return o == null ? null : (DarStatus)(int)o;
         }
 
         // ────────────────────────────────────────────────────────────────────

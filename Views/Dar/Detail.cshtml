@@ -34,8 +34,12 @@
                        && Model.RequestedBySamAcc == session?.SamAcc)
                       || session?.IsAdmin == true;
 
-    // Related Documents — DCC or Admin can add/edit/delete, any status
-    bool canEditRelatedDocs = session?.IsDCO == true || session?.IsAdmin == true;
+    // Related Documents — everyone can add/edit/delete until DCC completes the DAR
+    // (or it is Rejected/Cancelled); after that only DCC and Admin. Mirrors DarController.CanEditRelatedDocs.
+    bool canEditRelatedDocs = session?.IsDCO == true || session?.IsAdmin == true
+                              || (Model.Status != BTQCDar.Models.DarStatus.Completed
+                                  && Model.Status != BTQCDar.Models.DarStatus.Rejected
+                                  && Model.Status != BTQCDar.Models.DarStatus.Cancelled);
 
     string badgeClass = Model.Status switch {
         BTQCDar.Models.DarStatus.Draft           => "bg-secondary",
