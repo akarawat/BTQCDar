@@ -37,7 +37,7 @@ BEGIN
         [ForStandardOther]      NVARCHAR(200) NOT NULL DEFAULT '',
 
         -- Document info
-        [DocumentNo]            NVARCHAR(50)  NOT NULL DEFAULT '',
+        [DocumentNo]            NVARCHAR(500) NOT NULL DEFAULT '',   -- widened 50->500 (see 16_DocumentNoWiden.sql)
         [DocumentName]          NVARCHAR(500) NOT NULL DEFAULT '',
 
         -- Purpose section

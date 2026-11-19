@@ -111,7 +111,7 @@
         <div class="card shadow-sm h-100">
             <div class="card-header fw-semibold small">Document Information</div>
             <div class="card-body small">
-                <div><strong>Document No:</strong> @(string.IsNullOrEmpty(Model.DocumentNo) ? "—" : Model.DocumentNo)</div>
+                <div class="text-break"><strong>Document No:</strong> @(string.IsNullOrEmpty(Model.DocumentNo) ? "—" : Model.DocumentNo)</div>
                 <div class="mt-1"><strong>Document Name:</strong> @Model.DocumentName</div>
                 <div class="mt-1"><strong>Purpose:</strong> @Model.Purpose
                     @if (Model.Purpose == BTQCDar.Models.DarPurpose.Others)
